@@ -159,7 +159,7 @@ datasource:
   # against that assignment and the platform's provisioning receipt
   # (.hermes/lib/planner/run_identity.py), before the reset, the fixture
   # mutation, the destination startup and the parity run each connect.
-  instance: UNSTAMPED
+  instance: spring-petclinic-rest-legacy-v10-parity-postgres.wksp-ai-developer
   jdbc_url_env: PETCLINIC_DB_URL
   username_env: PETCLINIC_DB_USER
   password_env: PETCLINIC_DB_PASSWORD
