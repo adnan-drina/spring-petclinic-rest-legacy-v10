@@ -33,7 +33,7 @@ import org.springframework.samples.petclinic.repository.SpecialtyRepository;
 import org.springframework.samples.petclinic.repository.VetRepository;
 import org.springframework.samples.petclinic.repository.VisitRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import jakarta.transaction.Transactional;
 
 /**
  * Mostly used as a facade for all Petclinic controllers
@@ -70,7 +70,7 @@ public class ClinicServiceImpl implements ClinicService {
     }
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Pet> findAllPets() throws PersistenceException {
 		return petRepository.findAll();
 	}
@@ -82,7 +82,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Visit findVisitById(int visitId) throws PersistenceException {
 		Visit visit = null;
 		try {
@@ -95,7 +95,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Visit> findAllVisits() throws PersistenceException {
 		return visitRepository.findAll();
 	}
@@ -107,7 +107,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Vet findVetById(int id) throws PersistenceException {
 		Vet vet = null;
 		try {
@@ -120,7 +120,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Vet> findAllVets() throws PersistenceException {
 		return vetRepository.findAll();
 	}
@@ -138,7 +138,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Owner> findAllOwners() throws PersistenceException {
 		return ownerRepository.findAll();
 	}
@@ -150,7 +150,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public PetType findPetTypeById(int petTypeId) {
 		PetType petType = null;
 		try {
@@ -163,7 +163,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<PetType> findAllPetTypes() throws PersistenceException {
 		return petTypeRepository.findAll();
 	}
@@ -181,7 +181,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Specialty findSpecialtyById(int specialtyId) {
 		Specialty specialty = null;
 		try {
@@ -194,7 +194,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Specialty> findAllSpecialties() throws PersistenceException {
 		return specialtyRepository.findAll();
 	}
@@ -212,13 +212,13 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<PetType> findPetTypes() throws PersistenceException {
 		return petRepository.findPetTypes();
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Owner findOwnerById(int id) throws PersistenceException {
 		Owner owner = null;
 		try {
@@ -231,7 +231,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Pet findPetById(int id) throws PersistenceException {
 		Pet pet = null;
 		try {
@@ -258,7 +258,7 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
     @Cacheable(value = "vets")
 	public Collection<Vet> findVets() throws PersistenceException {
 		return vetRepository.findAll();
@@ -272,13 +272,13 @@ public class ClinicServiceImpl implements ClinicService {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Owner> findOwnerByLastName(String lastName) throws PersistenceException {
 		return ownerRepository.findByLastName(lastName);
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public Collection<Visit> findVisitsByPetId(int petId) {
 		return visitRepository.findByPetId(petId);
 	}
