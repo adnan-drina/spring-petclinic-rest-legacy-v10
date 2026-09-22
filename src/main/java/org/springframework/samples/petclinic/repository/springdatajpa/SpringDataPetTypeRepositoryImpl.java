@@ -16,7 +16,7 @@
 
 package org.springframework.samples.petclinic.repository.springdatajpa;
 
-import org.springframework.context.annotation.Profile;
+import io.quarkus.arc.profile.IfBuildProfile;
 import org.springframework.samples.petclinic.model.Pet;
 import org.springframework.samples.petclinic.model.PetType;
 import org.springframework.samples.petclinic.model.Visit;
@@ -30,7 +30,7 @@ import java.util.List;
  *
  */
 
-@Profile("spring-data-jpa")
+@IfBuildProfile("spring-data-jpa")
 public class SpringDataPetTypeRepositoryImpl implements PetTypeRepositoryOverride {
 	
 	@PersistenceContext
