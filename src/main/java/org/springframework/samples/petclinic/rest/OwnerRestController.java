@@ -24,12 +24,13 @@ import org.springframework.samples.petclinic.mapper.OwnerMapper;
 import org.springframework.samples.petclinic.model.Owner;
 import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Validator;
 import jakarta.validation.Valid;
+import jakarta.ws.rs.core.UriInfo;
+import jakarta.inject.Inject;
 import java.util.Collection;
 
 /**
@@ -43,10 +44,12 @@ public class OwnerRestController {
 
     private final ClinicService clinicService;
     private final OwnerMapper ownerMapper;
+    private final Validator validator;
 
-    public OwnerRestController(ClinicService clinicService, OwnerMapper ownerMapper) {
+    public OwnerRestController(ClinicService clinicService, OwnerMapper ownerMapper, Validator validator) {
         this.clinicService = clinicService;
         this.ownerMapper = ownerMapper;
+        this.validator = validator;
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
@@ -85,30 +88,30 @@ public class OwnerRestController {
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
     @RequestMapping(value = "", method = RequestMethod.POST, produces = "application/json")
-    public ResponseEntity<OwnerDto> addOwner(@RequestBody @Valid OwnerDto ownerDto, BindingResult bindingResult,
-                                             UriComponentsBuilder ucBuilder) {
+    public ResponseEntity<OwnerDto> addOwner(OwnerDto ownerDto, UriInfo uriInfo) {
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || ownerDto.getId() != null) {
+        var violations = this.validator.validate(ownerDto);
+        if (!violations.isEmpty() || ownerDto.getId() != null) {
             BindingErrorsResponse errors = new BindingErrorsResponse(ownerDto.getId());
-            errors.addAllErrors(bindingResult);
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
         }
         Owner owner = ownerMapper.toOwner(ownerDto);
         this.clinicService.saveOwner(owner);
         ownerDto.setId(owner.getId());
-        headers.setLocation(ucBuilder.path("/api/owners/{id}").buildAndExpand(owner.getId()).toUri());
+        headers.setLocation(uriInfo.getBaseUriBuilder().path("/api/owners/{id}").build(owner.getId()));
         return new ResponseEntity<>(ownerDto, headers, HttpStatus.CREATED);
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
     @RequestMapping(value = "/{ownerId}", method = RequestMethod.PUT, produces = "application/json")
-    public ResponseEntity<OwnerDto> updateOwner(@PathVariable("ownerId") int ownerId, @RequestBody @Valid OwnerDto ownerDto,
-                                                BindingResult bindingResult, UriComponentsBuilder ucBuilder) {
+    public ResponseEntity<OwnerDto> updateOwner(@PathVariable("ownerId") int ownerId, OwnerDto ownerDto) {
         boolean bodyIdMatchesPathId = ownerDto.getId() == null || ownerId == ownerDto.getId();
-        if (bindingResult.hasErrors() || !bodyIdMatchesPathId) {
+        var violations = this.validator.validate(ownerDto);
+        if (!violations.isEmpty() || !bodyIdMatchesPathId) {
             BindingErrorsResponse errors = new BindingErrorsResponse(ownerId, ownerDto.getId());
-            errors.addAllErrors(bindingResult);
+            errors.addAllErrors(violations);
             HttpHeaders headers = new HttpHeaders();
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);

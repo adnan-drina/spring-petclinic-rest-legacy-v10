@@ -18,9 +18,7 @@ package org.springframework.samples.petclinic.rest;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
+import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
@@ -68,13 +66,17 @@ public class BindingErrorsResponse {
 		this.bindingErrors.add(bindingError);
 	}
 
-	public void addAllErrors(BindingResult bindingResult) {
-		for (FieldError fieldError : bindingResult.getFieldErrors()) {
+	public void addAllErrors(Set<? extends jakarta.validation.ConstraintViolation<?>> violations) {
+		for (jakarta.validation.ConstraintViolation<?> violation : violations) {
+			String path = violation.getPropertyPath().toString();
+			String[] parts = path.split("\\.", 2);
+			String objectName = parts.length > 1 ? parts[0] : "";
+			String fieldName = parts.length > 1 ? parts[1] : path;
 			BindingError error = new BindingError();
-			error.setObjectName(fieldError.getObjectName());
-			error.setFieldName(fieldError.getField());
-			error.setFieldValue(String.valueOf(fieldError.getRejectedValue()));
-			error.setErrorMessage(fieldError.getDefaultMessage());
+			error.setObjectName(objectName);
+			error.setFieldName(fieldName);
+			error.setFieldValue(String.valueOf(violation.getInvalidValue()));
+			error.setErrorMessage(violation.getMessage());
 			addError(error);
 		}
 	}

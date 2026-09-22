@@ -24,9 +24,9 @@ import org.springframework.samples.petclinic.mapper.UserMapper;
 import org.springframework.samples.petclinic.model.User;
 import org.springframework.samples.petclinic.service.UserService;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Validator;
 import jakarta.validation.Valid;
 
 @RestController
@@ -36,20 +36,23 @@ public class UserRestController {
 
     private final UserService userService;
     private final UserMapper userMapper;
+    private final Validator validator;
 
-    public UserRestController(UserService userService, UserMapper userMapper) {
+    public UserRestController(UserService userService, UserMapper userMapper, Validator validator) {
         this.userService = userService;
         this.userMapper = userMapper;
+        this.validator = validator;
     }
 
 
     @PreAuthorize( "@securityMode.disabled() or hasRole(@roles.ADMIN)" )
     @RequestMapping(value = "", method = RequestMethod.POST, produces = "application/json")
-    public ResponseEntity<UserDto> addOwner(@RequestBody @Valid UserDto userDto, BindingResult bindingResult) throws Exception {
+    public ResponseEntity<UserDto> addOwner(UserDto userDto) throws Exception {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (userDto == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(userDto);
+        if (!violations.isEmpty() || (userDto == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<UserDto>(userDto, headers, HttpStatus.BAD_REQUEST);
         }

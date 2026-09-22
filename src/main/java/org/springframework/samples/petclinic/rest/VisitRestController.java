@@ -24,12 +24,12 @@ import org.springframework.samples.petclinic.mapper.VisitMapper;
 import org.springframework.samples.petclinic.model.Visit;
 import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Validator;
 import jakarta.validation.Valid;
+import jakarta.ws.rs.core.UriInfo;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -45,10 +45,12 @@ public class VisitRestController {
     private final ClinicService clinicService;
 
     private final VisitMapper visitMapper;
+    private final Validator validator;
 
-    public VisitRestController(ClinicService clinicService, VisitMapper visitMapper) {
+    public VisitRestController(ClinicService clinicService, VisitMapper visitMapper, Validator validator) {
         this.clinicService = clinicService;
         this.visitMapper = visitMapper;
+        this.validator = validator;
     }
 
 
@@ -76,28 +78,30 @@ public class VisitRestController {
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
     @RequestMapping(value = "", method = RequestMethod.POST, produces = "application/json")
-    public ResponseEntity<VisitDto> addVisit(@RequestBody @Valid VisitDto visitDto, BindingResult bindingResult, UriComponentsBuilder ucBuilder) {
+    public ResponseEntity<VisitDto> addVisit(VisitDto visitDto, UriInfo uriInfo) {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (visitDto == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(visitDto);
+        if (!violations.isEmpty() || (visitDto == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<VisitDto>(headers, HttpStatus.BAD_REQUEST);
         }
         Visit visit = visitMapper.toVisit(visitDto);
         this.clinicService.saveVisit(visit);
         visitDto = visitMapper.toVisitDto(visit);
-        headers.setLocation(ucBuilder.path("/api/visits/{id}").buildAndExpand(visit.getId()).toUri());
+        headers.setLocation(uriInfo.getBaseUriBuilder().path("/api/visits/{id}").build(visit.getId()));
         return new ResponseEntity<>(visitDto, headers, HttpStatus.CREATED);
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
     @RequestMapping(value = "/{visitId}", method = RequestMethod.PUT, produces = "application/json")
-    public ResponseEntity<VisitDto> updateVisit(@PathVariable("visitId") int visitId, @RequestBody @Valid VisitDto visitDto, BindingResult bindingResult) {
+    public ResponseEntity<VisitDto> updateVisit(@PathVariable("visitId") int visitId, VisitDto visitDto) {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (visitDto == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(visitDto);
+        if (!violations.isEmpty() || (visitDto == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
         }

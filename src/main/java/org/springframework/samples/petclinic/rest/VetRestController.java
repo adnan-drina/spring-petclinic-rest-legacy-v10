@@ -25,12 +25,12 @@ import org.springframework.samples.petclinic.model.Specialty;
 import org.springframework.samples.petclinic.model.Vet;
 import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Validator;
 import jakarta.validation.Valid;
+import jakarta.ws.rs.core.UriInfo;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -46,11 +46,13 @@ public class VetRestController {
     private final ClinicService clinicService;
     private final VetMapper vetMapper;
     private final SpecialtyMapper specialtyMapper;
+    private final Validator validator;
 
-    public VetRestController(ClinicService clinicService, VetMapper vetMapper, SpecialtyMapper specialtyMapper) {
+    public VetRestController(ClinicService clinicService, VetMapper vetMapper, SpecialtyMapper specialtyMapper, Validator validator) {
         this.clinicService = clinicService;
         this.vetMapper = vetMapper;
         this.specialtyMapper = specialtyMapper;
+        this.validator = validator;
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.VET_ADMIN)")
@@ -76,29 +78,31 @@ public class VetRestController {
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.VET_ADMIN)")
     @RequestMapping(value = "", method = RequestMethod.POST, produces = "application/json")
-    public ResponseEntity<VetDto> addVet(@RequestBody @Valid VetDto vetDto, BindingResult bindingResult, UriComponentsBuilder ucBuilder) {
+    public ResponseEntity<VetDto> addVet(VetDto vetDto, UriInfo uriInfo) {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (vetDto == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(vetDto);
+        if (!violations.isEmpty() || (vetDto == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
-            return new ResponseEntity<VetDto>(headers, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
         }
         Vet vet = vetMapper.toVet(vetDto);
         this.clinicService.saveVet(vet);
-        headers.setLocation(ucBuilder.path("/api/vets/{id}").buildAndExpand(vet.getId()).toUri());
-        return new ResponseEntity<VetDto>(vetMapper.toVetDto(vet), headers, HttpStatus.CREATED);
+        headers.setLocation(uriInfo.getBaseUriBuilder().path("/api/vets/{id}").build(vet.getId()));
+        return new ResponseEntity<>(vetMapper.toVetDto(vet), headers, HttpStatus.CREATED);
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.VET_ADMIN)")
     @RequestMapping(value = "/{vetId}", method = RequestMethod.PUT, produces = "application/json")
-    public ResponseEntity<VetDto> updateVet(@PathVariable("vetId") int vetId, @RequestBody @Valid VetDto vetDto, BindingResult bindingResult) {
+    public ResponseEntity<VetDto> updateVet(@PathVariable("vetId") int vetId, VetDto vetDto) {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (vetDto == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(vetDto);
+        if (!violations.isEmpty() || (vetDto == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
-            return new ResponseEntity<VetDto>(headers, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
         }
         Vet currentVet = this.clinicService.findVetById(vetId);
         if (currentVet == null) {

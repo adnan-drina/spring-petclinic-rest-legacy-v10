@@ -24,12 +24,12 @@ import org.springframework.samples.petclinic.mapper.PetTypeMapper;
 import org.springframework.samples.petclinic.model.PetType;
 import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Validator;
 import jakarta.validation.Valid;
+import jakarta.ws.rs.core.UriInfo;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -40,11 +40,13 @@ public class PetTypeRestController {
 
     private final ClinicService clinicService;
     private final PetTypeMapper petTypeMapper;
+    private final Validator validator;
 
 
-    public PetTypeRestController(ClinicService clinicService, PetTypeMapper petTypeMapper) {
+    public PetTypeRestController(ClinicService clinicService, PetTypeMapper petTypeMapper, Validator validator) {
         this.clinicService = clinicService;
         this.petTypeMapper = petTypeMapper;
+        this.validator = validator;
     }
 
     @PreAuthorize("@securityMode.disabled() or hasAnyRole(@roles.OWNER_ADMIN, @roles.VET_ADMIN)")
@@ -70,27 +72,29 @@ public class PetTypeRestController {
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.VET_ADMIN)")
     @RequestMapping(value = "", method = RequestMethod.POST, produces = "application/json")
-    public ResponseEntity<PetTypeDto> addPetType(@RequestBody @Valid PetTypeDto petType, BindingResult bindingResult, UriComponentsBuilder ucBuilder) {
+    public ResponseEntity<PetTypeDto> addPetType(PetTypeDto petType, UriInfo uriInfo) {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (petType == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(petType);
+        if (!violations.isEmpty() || (petType == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<PetTypeDto>(headers, HttpStatus.BAD_REQUEST);
         }
         final PetType type = petTypeMapper.toPetType(petType);
         this.clinicService.savePetType(type);
-        headers.setLocation(ucBuilder.path("/api/pettypes/{id}").buildAndExpand(petType.getId()).toUri());
+        headers.setLocation(uriInfo.getBaseUriBuilder().path("/api/pettypes/{id}").build(petType.getId()));
         return new ResponseEntity<PetTypeDto>(petTypeMapper.toPetTypeDto(type), headers, HttpStatus.CREATED);
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.VET_ADMIN)")
     @RequestMapping(value = "/{petTypeId}", method = RequestMethod.PUT, produces = "application/json")
-    public ResponseEntity<PetTypeDto> updatePetType(@PathVariable("petTypeId") int petTypeId, @RequestBody @Valid PetTypeDto petType, BindingResult bindingResult) {
+    public ResponseEntity<PetTypeDto> updatePetType(@PathVariable("petTypeId") int petTypeId, PetTypeDto petType) {
         BindingErrorsResponse errors = new BindingErrorsResponse();
         HttpHeaders headers = new HttpHeaders();
-        if (bindingResult.hasErrors() || (petType == null)) {
-            errors.addAllErrors(bindingResult);
+        var violations = this.validator.validate(petType);
+        if (!violations.isEmpty() || (petType == null)) {
+            errors.addAllErrors(violations);
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<PetTypeDto>(headers, HttpStatus.BAD_REQUEST);
         }
