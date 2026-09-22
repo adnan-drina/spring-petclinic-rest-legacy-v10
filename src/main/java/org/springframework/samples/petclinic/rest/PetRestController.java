@@ -38,7 +38,6 @@ import java.util.Collection;
  */
 
 @RestController
-@CrossOrigin(exposedHeaders = "errors, content-type")
 @RequestMapping("api/pets")
 public class PetRestController {
 

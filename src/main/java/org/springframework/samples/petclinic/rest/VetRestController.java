@@ -39,7 +39,6 @@ import java.util.Collection;
  */
 
 @RestController
-@CrossOrigin(exposedHeaders = "errors, content-type")
 @RequestMapping("api/vets")
 public class VetRestController {
 
