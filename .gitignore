@@ -1,0 +1,91 @@
+# Spec Kit is removed from Stage 080. Keep the ignore as defense in depth
+# so a stray local `specify init` can never land in the golden.
+.specify/
+
+# Planner producer output (M1/M2 regenerate in the workspace; the admission
+# receipt seals the digests, the files themselves are workspace evidence).
+.derived/
+evidence/frozen/
+evidence/producers/
+evidence/build/
+evidence/structure/
+evidence/planning/
+verification/
+# Paved-road KEEP fixtures carry a frozen verification/ tree (the derived
+# scenario corpus + its receipt). Un-ignore only those fixture trees; a
+# dest verification/ artifact anywhere else stays ignored.
+!.hermes/skills/paved-road/*/fixtures/**/verification/
+!.hermes/skills/paved-road/*/fixtures/**/verification/**
+
+# Admission fixture run output (UPLIFT-7 — never tip-commit)
+evidence/fixtures/admission/out/
+
+# Derive / dispatch run-state under evidence/derived/ (UPLIFT-7).
+# Intentional in-seat manifests (legacy-at-3.json) may exist; these globs
+# are regenerating exhaust that previously contaminated the golden tip.
+evidence/derived/free-primitives-apply-log.json
+evidence/derived/phase-*-task-id.txt
+evidence/derived/review-adhere-observe-needed.yaml
+evidence/derived/created-cards-*.json
+
+# Live analysis / inventory outputs (regenerated in workspace)
+evidence/entry-point-inventory.json
+evidence/mta-findings.json
+evidence/mta/
+# Do not gitignore migration/ — GRT retired it; SR-8 flags resurrection
+# (SR-8a). Ignoring the path would greenwash the MTA writer.
+
+# Maven / Quarkus build output
+target/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# OpenCode plugin-API scaffolding — generated at runtime whenever a project
+# has a .opencode/ directory; never committed.
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/.gitignore
+
+# IDE / language-server droppings
+.project
+.settings/
+.classpath
+# Kantra/analyzer-lsp Equinox state if analyze is ever mis-cwd'd into the
+# destination root (containment fix is cwd outside git root — belt only).
+.metadata/
+org.eclipse.core.runtime/
+org.eclipse.equinox.app/
+org.eclipse.equinox.launcher/
+org.eclipse.osgi/
+
+# Derived legacy@3.x trees must never be committed (workspace path is
+# /projects/.derived/; guard against accidental copies under modernized).
+evidence/derived/tree/
+evidence/derived/legacy-at-3/
+
+# Hermes runtime under relocated HERMES_HOME (AD-H §1c). Product skills live
+# under `.hermes/skills/` (golden). Session/log/cron output under
+# `$HERMES_HOME` is not versioned. Secrets must never land here — Managed
+# Scope owns .env.
+.hermes/home/sessions/
+.hermes/home/logs/
+.hermes/home/cron/output/
+.hermes/home/auth.json
+.hermes/home/.env
+
+# EX-2/EX-3 retirement attic must never ship in the golden scaffold
+# (E-20260815T094500Z LG4).
+tmp/
+
+# Authoring-board leak (E-20260815T000600Z / LG3). Not a product file.
+REFACTORING_V1.md
+
+# Free-primitives apply log (UPLIFT-7) — under derived tree or mis-cwd scaffold root
+.rhoai3-free-primitives-apply-log.json
+**/.rhoai3-free-primitives-apply-log.json
+

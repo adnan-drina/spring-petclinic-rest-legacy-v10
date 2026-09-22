@@ -1,0 +1,8 @@
+# Merge under spec.template.spec.containers[0] when database.needed.
+# M3 PROVISION_DATABASE owns this edit (files_writable: k8s/app.yaml).
+- name: QUARKUS_DATASOURCE_JDBC_URL
+  value: jdbc:postgresql://spring-petclinic-rest-legacy-v10-postgres:5432/spring-petclinic-rest-legacy-v10
+- name: QUARKUS_DATASOURCE_USERNAME
+  valueFrom: {secretKeyRef: {name: spring-petclinic-rest-legacy-v10-postgres, key: POSTGRESQL_USER}}
+- name: QUARKUS_DATASOURCE_PASSWORD
+  valueFrom: {secretKeyRef: {name: spring-petclinic-rest-legacy-v10-postgres, key: POSTGRESQL_PASSWORD}}

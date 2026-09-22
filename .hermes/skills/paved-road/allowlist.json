@@ -1,0 +1,23 @@
+{
+  "domain": [
+    "spring-to-quarkus-patterns",
+    "form-entity-persistence",
+    "restore-source-response-shape"
+  ],
+  "dest-init": [
+    "dispatch-phase"
+  ],
+  "kind-not-yet": [
+    "derive-legacy-boot3",
+    "manage-quarkus-extensions",
+    "author-destination-pom",
+    "commit-destination-tree",
+    "reference-rh-quarkus-pom",
+    "configure-quarkus-profiles",
+    "assert-retrievable-tree",
+    "assert-pinned-gates-ran",
+    "assert-no-fence-evasion",
+    "derive-story-oracles",
+    "run-report"
+  ]
+}

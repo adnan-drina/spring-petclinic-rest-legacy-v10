@@ -1,0 +1,110 @@
+# Migration provenance + harness contract — stamped by the app-migration
+# template. Specimen-layering: the golden scaffold stays specimen-free; this
+# skeleton is the only place demo-specimen contracts are written.
+#
+# Profile selection is by legacyRepoUrl (known demo freeze-forks). Unknown
+# URLs get provenance + analysis only and contract.status: undecided — never
+# Coolstore cart literals. Do not "edit after create" for the known demo
+# specimens; recreate from the template if the stamp is wrong. dest-3
+# gs-rest-service-legacy was stamped on the already-materialised dest file
+# (Operator GO); this branch is for the next cut.
+# Plain set tags below, NOT the whitespace-stripping dash form: stripping eats
+# the newline before migration: and glues it onto this comment block.
+# Do not write template tag syntax in these comments — the scaffolder renders
+# this file before YAML parsing, so a tag inside a "#" comment is still parsed.
+
+
+
+
+migration:
+  legacyRepoUrl: https://github.com/adnan-drina/spring-petclinic-rest-legacy.git
+  target: quarkus
+  provisionedBy: app-migration golden-path template
+  legacyBasePackage: org.springframework.samples.petclinic
+  legacyPackage: org.springframework.samples.petclinic
+  targetPackage: com.demo
+  path_rewrites:
+    - from: src/main/java/com/demo/
+      to: src/main/java/org/springframework/samples/petclinic/
+    - from: src/test/java/com/demo/
+      to: src/test/java/org/springframework/samples/petclinic/
+  # Dest↔legacy leaves under the rewritten package root (from=dest, to=legacy).
+  # The deriver applies these; the plan may rename a leaf.
+  intra_package_maps:
+    - from: entity/
+      to: model/
+acceptance:
+  # Validated showcase stamp (petclinic-rest-v5 / O-ACCEPTREAL).
+  path: /petclinic/api/vets
+  collection: _array
+  getter: getAllVets
+  service: VetRestController
+  itemType: VetDto
+  idFields:
+    - id
+
+# The resources THIS RUN was ASSIGNED. Every one of them is created at
+# workspace initiation by PLATFORM code (the provision-migration-run Pipeline,
+# started by the dispatcher from the scaffolding push), never by hand and never
+# shared with another run. Nothing in this repository is applied to the cluster:
+# this block is the run's copy of the assignment, and the platform writes its
+# own receipt into the run's workspace secret as PARITY_RUN_RECEIPT.
+#
+# Ownership is the AGREEMENT of the two, checked against the endpoint the
+# workspace actually holds (.hermes/lib/planner/run_identity.py). Editing this
+# block cannot move the run onto another database — it can only make the
+# assignment and the receipt disagree, which refuses every database operation.
+#
+# Specimen-layering applies here too: the environment variable NAMES below are
+# the contract decisions.yaml references (ADR-009 datasource, ADR-014 fixture
+# identities), and no value is ever written here or into the evidence.
+resources:
+  run: spring-petclinic-rest-legacy-v10
+  namespace: wksp-ai-developer
+  receipt_env: PARITY_RUN_RECEIPT
+  parity_database:
+    instance: spring-petclinic-rest-legacy-v10-parity-postgres.wksp-ai-developer
+    database: parity
+    port: 5432
+    server_secret: spring-petclinic-rest-legacy-v10-parity-postgres
+    workspace_secret: spring-petclinic-rest-legacy-v10-parity-db
+    jdbc_url_env: PETCLINIC_DB_URL
+    username_env: PETCLINIC_DB_USER
+    password_env: PETCLINIC_DB_PASSWORD
+  fixture_credentials:
+    secret: spring-petclinic-rest-legacy-v10-parity-credentials
+    env:
+      - PETCLINIC_ADMIN_CREDENTIAL
+      - PETCLINIC_INVALID_CREDENTIAL
+
+
+analysis:
+  # AD-003A: --target only, never --source. openjdk21 kept (O-OPENJDK21TARGET).
+  mode: source-only
+  custom_rules: .hermes/planning/mta-rules
+  canary_rule_id: rhoai3-canary-00001
+  targets:
+    - quarkus
+    - jakarta-ee9
+    - cloud-readiness
+    - openjdk17
+    - openjdk21
+targetContract:
+  validateInput: true
+  mapErrors: true
+  getIdempotent: true
+  threadSafeState: false
+  cacheRefreshGuard: true
+  normalizeBeforeDerive: false
+configTransforms:
+  - from: server.port
+    to: quarkus.http.port
+    valueMap:
+      "9966": "8080"
+preserve:
+  - petclinic.security.enable
+  - server.servlet.context-path
+forbidden: []
+contract:
+  status: decided
+  profile: spring-petclinic-rest-legacy

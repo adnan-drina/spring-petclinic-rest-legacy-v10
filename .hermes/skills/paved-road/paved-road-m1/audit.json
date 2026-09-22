@@ -1,0 +1,129 @@
+{
+  "artifact": "m1-analyze",
+  "kind": "m1-analyze",
+  "last_wins_across_needles": false,
+  "last_wins_within_needle": true,
+  "producer": "assemble-evidence-bundle",
+  "silence_fails": true,
+  "source": "steps.json",
+  "steps": [
+    {
+      "backing": "skill",
+      "id": "freeze-migration-input",
+      "keep": [
+        "evidence/frozen/source-manifest.json",
+        "evidence/producers/freeze.json"
+      ],
+      "needle": "freeze-migration-input"
+    },
+    {
+      "backing": "skill",
+      "id": "capture-build-evidence",
+      "keep": [
+        "evidence/producers/build.json"
+      ],
+      "needle": "capture-build-evidence"
+    },
+    {
+      "backing": "skill",
+      "id": "inventory-legacy-surface",
+      "keep": [
+        "evidence/structure/structure.json",
+        "evidence/entry-point-inventory.json",
+        "evidence/type-inventory.json",
+        "evidence/producers/jdk-model.json"
+      ],
+      "needle": "inventory-legacy-surface"
+    },
+    {
+      "backing": "skill",
+      "id": "scan-with-mta",
+      "keep": [
+        "evidence/mta-findings.json",
+        "evidence/findings-handoff.json",
+        "evidence/required-extensions.json",
+        "evidence/producers/mta.json"
+      ],
+      "needle": "scan-with-mta"
+    },
+    {
+      "backing": "skill",
+      "id": "assemble-evidence-bundle",
+      "keep": [
+        "evidence/planning/evidence-bundle.json"
+      ],
+      "needle": "assemble-evidence-bundle",
+      "producer": true
+    },
+    {
+      "backing": "skill",
+      "id": "derive-source-scenarios",
+      "keep": [
+        "verification/scenarios/corpus.json",
+        "verification/scenarios/_derive.json"
+      ],
+      "needle": "capture-source-oracles"
+    },
+    {
+      "backing": "skill",
+      "id": "capture-source-scenarios",
+      "keep": [
+        "verification/source-oracles/scenarios/_capture.json"
+      ],
+      "needle": "capture-source-oracles"
+    },
+    {
+      "backing": "skill",
+      "id": "qualify-source-captures",
+      "keep": [
+        "verification/source-oracles/scenarios/_qualification.json"
+      ],
+      "needle": "capture-source-oracles"
+    },
+    {
+      "backing": "skill",
+      "id": "derive-source-scenarios-enabled",
+      "keep": [
+        "verification/scenarios-enabled/_derive.json"
+      ],
+      "needle": "capture-source-oracles"
+    },
+    {
+      "backing": "skill",
+      "id": "capture-source-scenarios-enabled",
+      "keep": [
+        "verification/source-oracles/scenarios-enabled/_capture.json"
+      ],
+      "needle": "capture-source-oracles"
+    },
+    {
+      "backing": "skill",
+      "id": "qualify-source-captures-enabled",
+      "keep": [
+        "verification/source-oracles/scenarios-enabled/_qualification.json"
+      ],
+      "needle": "capture-source-oracles"
+    },
+    {
+      "backing": "native",
+      "id": "kanban-attach",
+      "keep": [
+        "evidence/planning/evidence-bundle.json",
+        "evidence/findings-handoff.json",
+        "evidence/entry-point-inventory.json",
+        "evidence/type-inventory.json",
+        "evidence/required-extensions.json",
+        "evidence/mta-findings.json"
+      ],
+      "needle": "kanban_attach.py"
+    },
+    {
+      "backing": "native",
+      "id": "dispatch-next-phase",
+      "keep": [],
+      "needle": "autostart-migration.sh"
+    }
+  ],
+  "unmatched_exit_1_fails": true,
+  "worker_receipts_are_not_proof": true
+}

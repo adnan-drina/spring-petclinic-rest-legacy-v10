@@ -1,0 +1,1506 @@
+#!/usr/bin/env bash
+# K2 pre_tool_call — allow-root containment (Architect E-20260823T122407Z).
+# Not claimed control. Gate P-kernel CLOSED (Architect 142526Z); this
+# file remains K2 instrumentation (MEASURED), not a claimed write fence.
+# Hermes pipes hook JSON on stdin — do not steal it with a heredoc.
+# Allow roots: K2_ALLOW_ROOT, else HERMES_WRITE_SAFE_ROOT. os.pathsep
+# split (Architect 214325ZA): dest terminal roots are dest tree +
+# /projects/legacy. Do not put / in the list. Write sandbox stays
+# HERMES_WRITE_SAFE_ROOT as the dest tree only (legacy is read-only).
+# Architect 124330Z: extract POSIX-looking path spans (/ -anchored, ~/,
+# ./, ../) including quotes/q{}. Not every / (https://, 2026/08/23).
+# Opaque construction denies even inside a grant (Architect 085408ZA AMEND
+# of 214743ZA). Discriminator is opacity, not empty path set. Transparent
+# pathless + cwd realpath inside K2_ALLOW_ROOT allow. Missing cwd deny.
+# Not an interpreter denylist. Dual-root allow-root still stands (214325ZA).
+# Do not add /opt/kantra. Do not allow /. Do not add /projects/.derived
+# (Architect 082958ZA). export NAME=value / NAME=value prefixes are env
+# values, not access targets (Operator 083840ZO GAP 2) — JAVA_HOME and
+# PATH=/bin:$PATH must not block. RHS $PATH in PATH=/bin:$PATH is
+# concatenation, not a later access.
+# Batch 4: toolchain reads (/dev/null, /usr/lib/jvm) are not K2_ALLOW_ROOT
+# widening (AD-020). Write-set deny. Orchestrator disabled-toolset named
+# refusal. Implementer kanban_complete refused (request_review). Reviewer
+# complete refused unless assert-paved-road-audit last exited 0 this log.
+# Bound-gate last-nonzero still refuses complete when profile is unset.
+# dest-22 P0-B: implementer product-tree write / continue-after-red after
+# a mandated needle whose last invocation is [exit 1]. Re-run that
+# needle or kanban_block. Last-wins within the same needle (omitted
+# success marker is green). Do not latch FAIL:/REFUSE prose. Not a
+# write fence (AD-020 residual: python3 script.py, exec).
+# Dest-init matcher must include the native complete tool — it is not
+# terminal (dest-14: hook never ran). Task id: env then payload.
+# Complete breadcrumb: evidence/receipts/hook/complete-invocations.jsonl
+# (hook-written; absence means the dispatcher never invoked this hook).
+# Named-profile HERMES_HOME is <root>/profiles/<name>; kanban logs stay
+# under <root>/kanban/logs/. Resolve the root before open() (Architect
+# 183220ZA). Log still missing after that resolve is a refusal, not a pass.
+# Batch 6: M4/VERDICT writes default to evidence/; add-extension is implement.
+# F4: M4 must not write_file evidence/receipts/gates/ (runners write receipts).
+# Write-set: classify by write *effect* (open(..., \"w\"), Path.write_text),
+# not an interpreter denylist. Do not add python to looks_like_write_cmd
+# (Architect 193642ZA / 195231ZA / 200550ZA; dest-13 python3 -c open() bypass).
+# Residual: command-text only, not a syscall. Write-set stays advisory
+# (AD-020; not containment).
+# Generated test roots (ADR-015 / ADR-019): the generator's own declaration
+# (generate-product-tests/scripts/parity_pom.py and the generated manifest)
+# names the roots; a worker never writes under them, whatever its write set.
+set -euo pipefail
+K2_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export K2_HOOK_DIR
+exec python3 -c '
+import json, os, re, sys, time
+
+def block(reason):
+    print(json.dumps({"action": "block", "message": reason}))
+    raise SystemExit(0)
+
+allow = os.environ.get("K2_ALLOW_ROOT") or os.environ.get("HERMES_WRITE_SAFE_ROOT") or ""
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    block("unparseable hook payload")
+tool = data.get("tool_name") or ""
+inp = data.get("tool_input") or {}
+if not isinstance(inp, dict):
+    inp = {}
+cmd = inp.get("command") if isinstance(inp.get("command"), str) else ""
+profile = (os.environ.get("HERMES_PROFILE") or "").strip().lower()
+extra = data.get("extra") if isinstance(data.get("extra"), dict) else {}
+args = data.get("args") if isinstance(data.get("args"), dict) else {}
+hook_cwd = ""
+for src in (data, extra, inp, args):
+    if not isinstance(src, dict):
+        continue
+    for key in ("cwd", "working_dir", "workdir"):
+        v = src.get(key)
+        if isinstance(v, str) and v.strip():
+            hook_cwd = v.strip()
+            break
+    if hook_cwd:
+        break
+
+def resolve_rp(p):
+    s = (p or "").strip()
+    if s.startswith("~"):
+        s = os.path.expanduser(s)
+    rel = not os.path.isabs(s)
+    if hook_cwd and rel:
+        s = os.path.join(hook_cwd, s)
+    try:
+        rp = os.path.realpath(s)
+    except OSError:
+        return s
+    if rel:
+        # H9a (dest v9 t_2da2458b): the hook payload cwd is the Hermes
+        # PROCESS cwd (shell_hooks._serialize_payload: Path.cwd()), while the
+        # file tools and the terminal resolve a relative path against the
+        # SESSION cwd (file_tools._resolve_path -> terminal_tool.get_session_cwd),
+        # which this hook cannot read (in-process). A relative path that lands
+        # outside every allow root when joined with the process cwd is taken
+        # relative to the dest root -- the session cwd of every loop card --
+        # when it exists there. It is then checked against the write set like
+        # any other path; nothing is widened, only the base is corrected.
+        try:
+            allowed = [os.path.realpath(x) for x in allow.split(os.pathsep) if x.strip()]
+        except OSError:
+            allowed = []
+        inside_any = any(rp == a or rp.startswith(a + os.sep) for a in allowed)
+        base = (os.environ.get("HERMES_WRITE_SAFE_ROOT") or "").strip() or (allowed[0] if allowed else "")
+        if not inside_any and base:
+            try:
+                alt = os.path.realpath(os.path.join(base, (p or "").strip().lstrip("./") or "."))
+            except OSError:
+                alt = ""
+            if alt and (alt == base or alt.startswith(os.path.realpath(base) + os.sep)) and os.path.exists(os.path.dirname(alt) or alt):
+                return alt
+    return rp
+
+ORCH_DISABLED = {
+    "file", "terminal", "code_execution", "delegation", "web", "browser", "skills",
+}
+TOOL_TO_SET = {
+    "terminal": "terminal", "bash": "terminal", "shell": "terminal",
+    "read_file": "file", "write_file": "file", "search_files": "file",
+    "patch": "file", "edit_file": "file", "str_replace": "file",
+    "execute_code": "code_execution", "delegate_task": "delegation",
+}
+if profile == "orchestrator":
+    ts = TOOL_TO_SET.get(tool)
+    if ts in ORCH_DISABLED:
+        block("%s disabled for profile orchestrator" % ts)
+
+REVIEWER_DISABLED = {
+    "file", "code_execution", "delegation", "web", "browser",
+}
+if profile == "reviewer":
+    ts = TOOL_TO_SET.get(tool)
+    if ts in REVIEWER_DISABLED:
+        block("%s disabled for profile reviewer" % ts)
+
+if tool in {"execute_code", "delegate_task", "mcp", "skill_manage"}:
+    block("%s is pathless-or-mutation; deny" % tool)
+
+# Graph mutation veto (SAD §9 K2): a worker never creates or links cards.
+# Cards come from K4 (python3 .hermes/kernel/k4_mint.py --root . --exec)
+# under an ADMITTED receipt; the paved road runs that CLI, not the model.
+# Guardrail only — claimed_control stays false.
+GRAPH_MUTATION_TOOLS = {
+    "kanban_create", "kanban_link", "kanban_unlink", "kanban_swarm",
+    "kanban_decompose", "create_task", "link_task", "kanban_daemon",
+}
+if profile in {"implementer", "reviewer", "orchestrator"}:
+    if tool in GRAPH_MUTATION_TOOLS:
+        block("%s refused: board graph mutation is K4 only "
+              "(python3 .hermes/kernel/k4_mint.py --root . --exec under an ADMITTED receipt)" % tool)
+    _blob = " ".join([cmd or "", str(inp.get("action") or "")])
+    if re.search(r"\bhermes\s+kanban\s+(create|link|unlink|swarm|decompose)\b", _blob):
+        block("direct hermes kanban graph mutation refused: run "
+              "python3 .hermes/kernel/k4_mint.py --root . --exec (K4) instead")
+    if re.search(r"\bkanban\s+daemon\b", _blob) and "--force" in _blob:
+        block("hermes kanban daemon --force refused (OBJECT)")
+
+def is_complete():
+    if tool in {"kanban_complete", "complete_task"}:
+        return True
+    blob = " ".join([tool, cmd, str(inp.get("action") or "")])
+    if "kanban_complete" in blob:
+        return True
+    if re.search(r"\bkanban\s+complete\b", blob):
+        return True
+    return False
+
+def is_block():
+    if tool in {"kanban_block", "block_task"}:
+        return True
+    blob = " ".join([tool, cmd, str(inp.get("action") or "")])
+    if "kanban_block" in blob:
+        return True
+    if re.search(r"\bkanban\s+block\b", blob):
+        return True
+    return False
+
+def is_request_review():
+    if tool in {"kanban_request_review", "request_review"}:
+        return True
+    blob = " ".join([tool, cmd, str(inp.get("action") or "")])
+    if "kanban_request_review" in blob:
+        return True
+    if re.search(r"\bkanban\s+request[-_ ]review\b", blob):
+        return True
+    return False
+
+def hook_task_id():
+    env_task = (os.environ.get("HERMES_KANBAN_TASK") or "").strip()
+    if env_task:
+        return env_task
+    for src in (data, extra, args, inp):
+        if not isinstance(src, dict):
+            continue
+        v = src.get("task_id")
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+def kanban_root_home():
+    home = (os.environ.get("HERMES_HOME") or "").strip()
+    if not home:
+        return ""
+    parent, name = os.path.split(home.rstrip("/"))
+    root, profiles = os.path.split(parent)
+    if profiles == "profiles" and name and root:
+        return root
+    return home
+
+def record_complete_invocation(decision):
+    """Append one hook-authored line. Absence of the file means the
+    dispatcher never invoked this hook (canary part a). Do not print.
+    """
+    wr = (os.environ.get("HERMES_WRITE_SAFE_ROOT") or "").strip()
+    root = ""
+    if wr:
+        try:
+            root = os.path.realpath(wr)
+        except OSError:
+            root = wr
+    else:
+        raw_allow = os.environ.get("K2_ALLOW_ROOT") or ""
+        first = ""
+        for part in raw_allow.split(os.pathsep):
+            part = part.strip()
+            if part:
+                first = part
+                break
+        if first:
+            try:
+                root = os.path.realpath(first)
+            except OSError:
+                root = first
+    if not root or root == "/":
+        return
+    rec = {
+        "decision": decision,
+        "profile": profile,
+        "task_id": hook_task_id(),
+        "tool": tool,
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    path = os.path.join(
+        root, "evidence", "receipts", "hook", "complete-invocations.jsonl"
+    )
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, sort_keys=True) + "\n")
+    except OSError:
+        return
+
+def paved_road_audit_green():
+    env_exit = (os.environ.get("K2_PAVED_ROAD_AUDIT_EXIT") or "").strip().lower()
+    if env_exit in {"1", "fail", "true", "nonzero"}:
+        return False
+    if env_exit in {"0", "pass", "ok"}:
+        return True
+    task = hook_task_id()
+    home = kanban_root_home()
+    if not task or not home:
+        return False
+    log = os.path.join(home, "kanban", "logs", "%s.log" % task)
+    try:
+        text = open(log, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return False
+    # Same convention as .hermes/lib/paved_road.py: the dispatcher stamps
+    # "[exit N]" on failure only, so an omitted marker on a terminal line is
+    # a PASS, not "no information". Reading it as no-information latched this
+    # gate closed on v18 t_6320c956: the first invocation used a wrong --log
+    # path and stamped [exit 1]; every later green run emitted no marker,
+    # matched no branch, and left last_rc at 1 forever. Neither seat could
+    # then terminate -- the implementer is refused kanban_complete and the
+    # reviewer was refused here. SOUL says correcting your own invocation and
+    # re-running green is legal; the old reading made it permanently fatal.
+    #
+    # Only a real invocation counts. Prose that names the script, and other
+    # commands that merely reference the path (find -newer .../audit.py,
+    # head -80 .../audit.py), are not runs of it.
+    last_rc = None
+    invoke = re.compile(r"python3\s+\S*assert-paved-road-audit\.py")
+    for line in text.splitlines():
+        if "$" not in line or not invoke.search(line):
+            continue
+        m = re.search(r"\[exit (\d+)\]", line)
+        last_rc = int(m.group(1)) if m else 0
+    return last_rc == 0
+
+LOOP_VERDICTS = ("OK: ACCEPTED", "REVERTED ", "DEFERRED ")
+
+def loop_record_names_task(task):
+    """verification/loop/steps.json (under an allow root) names the card as an
+    accepted step or a rejected attempt: the durable form of the verdict.
+    A VERIFICATION_PENDING row is not a complete-able verdict."""
+    if not task:
+        return False
+    roots = [x for x in allow.split(os.pathsep) if x] + [os.environ.get("HERMES_WRITE_SAFE_ROOT") or ""]
+    for r in roots:
+        if not r:
+            continue
+        p = os.path.join(r, "verification", "loop", "steps.json")
+        try:
+            doc = json.load(open(p, encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(doc, dict):
+            continue
+        for key in ("steps", "rejected"):
+            for row in doc.get(key) or []:
+                if isinstance(row, dict) and str(row.get("card") or "") == task:
+                    return True
+    return False
+
+LOOP_ROAD = ("brief.py", "run-verify.sh", "advance.py")
+
+def is_loop_card():
+    """This task is the loop card K4 issued (verification/loop/issued.json under an allow root names it)."""
+    task = hook_task_id()
+    if not task:
+        return False
+    roots = [x for x in allow.split(os.pathsep) if x] + [os.environ.get("HERMES_WRITE_SAFE_ROOT") or ""]
+    for r in roots:
+        if not r:
+            continue
+        try:
+            doc = json.load(open(os.path.join(r, "verification", "loop", "issued.json"), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(doc, dict) and str(doc.get("task_id") or "") == task:
+            return True
+    return False
+
+INLINE_PY = re.compile(r"(?:^|[\s;&|(])python3?\s+-(?:c\b|\s|$)")
+
+def loop_road_ran():
+    """paved-road-m3 on the official log: brief.py, run-verify.sh and
+    advance.py each ran as a terminal command (basename on a $ line)."""
+    env_road = (os.environ.get("K2_LOOP_ROAD") or "").strip()
+    if env_road in {"0", "1"}:
+        return env_road == "1"
+    task = hook_task_id()
+    home = kanban_root_home()
+    if not task or not home:
+        return False
+    log = os.path.join(home, "kanban", "logs", "%s.log" % task)
+    try:
+        text = open(log, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return False
+    seen = set()
+    for line in text.splitlines():
+        if "$" not in line:
+            continue
+        for name in LOOP_ROAD:
+            if re.search(r"(?:^|[\s/\"`])" + re.escape(name) + r"(?:[\s\"`;|&<>]|$)", line):
+                seen.add(name)
+    return all(n in seen for n in LOOP_ROAD)
+
+def loop_verdict_recorded():
+    """A loop (M3) card is audited by its acceptance transaction: after a real
+    invocation of fix-until-green/scripts/advance.py the log carries the
+    verdict ACCEPTED, REVERTED or DEFERRED. REVERTED and DEFERRED exit 1 by
+    design (candidate discarded / loop stopped) and are complete, recorded
+    outcomes -- not a red audit. Pilot v6 (2026-09-10, t_ac60cdd2): the
+    reviewer was refused kanban_complete and forced into request_changes on a
+    REVERTED card, sending the same card back for a third run while K4 had
+    already minted attempt 2."""
+    env_verdict = (os.environ.get("K2_LOOP_VERDICT") or "").strip().upper()
+    if env_verdict in {"ACCEPTED", "REVERTED", "DEFERRED"}:
+        return True
+    task = hook_task_id()
+    if loop_record_names_task(task):
+        return True
+    home = kanban_root_home()
+    if not task or not home:
+        return False
+    log = os.path.join(home, "kanban", "logs", "%s.log" % task)
+    try:
+        text = open(log, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return False
+    invoked = False
+    for line in text.splitlines():
+        if "$" in line and "fix-until-green/scripts/advance.py" in line and "python3" in line:
+            invoked = True
+            continue
+        if invoked and any(v in line for v in LOOP_VERDICTS):
+            return True
+    return False
+
+def bound_gates_red():
+    """Needles whose last invocation is still [exit 1].
+
+    Same last-wins-within-needle rule as paved_road.unmatched_exit1:
+    omitted success marker is green. Skip FAIL:/REFUSE prose (reviewer
+    audit lines re-latched dest-22 after a later clean run).
+    """
+    env_exit = (os.environ.get("K2_BOUND_GATE_EXIT") or "").strip().lower()
+    if env_exit in {"1", "fail", "true", "nonzero"}:
+        return [os.environ.get("K2_BOUND_GATE_NAME") or "bound-gate"]
+    if env_exit in {"0", "pass", "ok"}:
+        return []
+    task = hook_task_id()
+    home = kanban_root_home()
+    if not task or not home:
+        return []
+    log = os.path.join(home, "kanban", "logs", "%s.log" % task)
+    try:
+        text = open(log, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return []
+    names = (
+        "assert-planner-activated", "bootstrap-destination", "build-worklist", "admit-migration-plan",
+        "verify-admission-receipt", "verify-live-kanban-loop", "k3_live",
+        "assemble-evidence-bundle", "freeze-migration-input", "normalize-structure",
+        "assert-frozen-root-pair", "assert-frozen-input-intact", "assert-mta-canary",
+        "run-verify", "fix-until-green/scripts/verify", "fix-until-green/scripts/advance",
+        # brief.py [exit 1] (LOOP_WRONG_CARD / LOOP_CLUSTER_NOT_OPEN /
+        # LOOP_NO_OPEN_CLUSTER) is a legal stop: re-run the needle or
+        # kanban_block. v9 t_cc3b6aac rummaged verification/loop/ for
+        # ~20 min after LOOP_NO_OPEN_CLUSTER because this needle was not
+        # bound; kanban_complete still needs the full road (is_complete).
+        "fix-until-green/scripts/brief",
+        "compare-runtime-parity", "compose-parity-receipt",
+        "assert-m4-verdict-schema", "check-product-tests", "run-m4-pre-verdict", "assert-pinned-gates-ran",
+        "assert-retrievable-tree", "check-domain-parity",
+        "check-release-readiness", "check-test-toolchain", "check-external-dirs",
+        "assert-surefire-results", "assert-m4-card-body",
+    )
+    last = {}
+    for line in text.splitlines():
+        hits = [n for n in names if n in line]
+        if not hits:
+            continue
+        if "$" not in line and "python3" not in line:
+            continue
+        name = max(hits, key=len)
+        m = re.search(r"\[exit (\d+)\]", line)
+        last[name] = int(m.group(1)) if m else 0
+    return [n for n in names if last.get(n) == 1]
+
+def bound_gate_red():
+    reds = bound_gates_red()
+    if reds and loop_verdict_recorded():
+        # advance.py exit 1 is REVERTED/DEFERRED: a verdict, not a red gate
+        reds = [r for r in reds if "fix-until-green/scripts/advance" not in r]
+    return reds[0] if reds else None
+
+def review_reviewer():
+    """The reviewer a request_review names: native arg, or --reviewer on the CLI form."""
+    rv = str(inp.get("reviewer") or "").strip()
+    if not rv and cmd:
+        m = re.search(r"--reviewer[= ]+(\S+)", cmd)
+        rv = m.group(1).strip(chr(34)) if m else ""
+    return rv
+
+# A review handed to nobody is dispatched back to the implementer: pilot v6
+# t_b2fe5a8d (2026-09-10) sent reviewer=None, the implementer re-ran advance.py
+# on its own accepted card (LOOP_WRONG_CARD), blocked it, and the successor
+# card was never promoted (parents_not_done). The card body says
+# reviewer=reviewer; the hook makes it so.
+if is_request_review() and profile == "implementer" and review_reviewer() != "reviewer":
+    block("kanban_request_review refused: name the reviewer (reviewer=reviewer). "
+          "Without it Hermes dispatches the review back to the implementer, which "
+          "re-runs the acceptance on a card that is already closed.")
+
+# v7 item 8: on a loop card the brief already carries the measure, the items
+# with their advice, the rule conditions and the previous attempts. Inline
+# python that re-derives them from JSON was whole cards of exploration in v6
+# (t_57aef986: 1255 lines, 7 terminal probes, no patch). The road is patch →
+# run-verify → advance; a script file the road names is still allowed.
+if profile == "implementer" and ((tool in {"terminal", "bash", "shell"} and cmd and INLINE_PY.search(cmd)) or tool in {"execute_code", "code_execution", "python"}) and is_loop_card():
+    block("inline python refused on a loop card: the brief (verification/loop/brief-*.json) "
+          "already carries the measure, every item with its advice and rule condition, "
+          "and previous_attempts. Read it with cat, patch the write set, then run "
+          "run-verify.sh and advance.py.")
+
+# H9b (dest v9 t_2da2458b): the terminal call of the worker to advance.py was
+# killed at ~30 s AFTER the acceptance had committed and recorded its step; a
+# second advance.py answered LOOP_STALE_STATE and the worker kanban_blocked an
+# ACCEPTED card, whose child then sat in todo. A card whose step is recorded
+# accepted has exactly one terminator.
+def loop_step_accepted():
+    """(step index, commit) when verification/loop/steps.json under an allow
+    root records the card of this task as accepted; None otherwise."""
+    task = hook_task_id()
+    if not task:
+        return None
+    roots_ = [x for x in allow.split(os.pathsep) if x] + [os.environ.get("HERMES_WRITE_SAFE_ROOT") or ""]
+    for r in roots_:
+        if not r:
+            continue
+        try:
+            doc = json.load(open(os.path.join(r, "verification", "loop", "steps.json"), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for n, row in enumerate(doc.get("steps") or [] if isinstance(doc, dict) else []):
+            if isinstance(row, dict) and str(row.get("card") or "") == task and str(row.get("verdict") or "") == "accepted":
+                return n, str(row.get("commit") or "")
+    return None
+
+if profile == "implementer" and is_block() and is_loop_card() is False and loop_step_accepted() is not None:
+    _n, _c = loop_step_accepted()
+    block("kanban_block refused: the acceptance of this card is recorded (verification/loop/steps.json step %d, commit %s); "
+          "kanban_complete is the terminator. A killed or repeated advance.py does not undo an acceptance: run "
+          "advance.py again (it answers OK: ACCEPTED already) or read steps.json." % (_n, _c[:12]))
+
+# The evidence rule (paved-road-m3): the measured artifact is the packaged
+# build run-verify.sh makes under decisions.yaml build_profiles and starts as
+# the parity phase does. v9 t_d280284d spent the last third of its hour on
+# `mvn quarkus:dev` and curl: a dev-profile build (other beans, other config)
+# that is not the artifact measured -- the create worked there and answered
+# 400 packaged. A server the worker starts is not evidence on a loop card.
+APP_START = re.compile(
+    r"(?:^|[\s;&|(])(?:\./)?mvnw?\b[^;&|\n]*(?:\bquarkus:(?:dev|run|remote-dev)\b|\bspring-boot:run\b|-Dquarkus\.profile=)"
+    r"|(?:^|[\s;&|(])quarkus\s+dev\b"
+    r"|(?:^|[\s;&|(])java\b[^;&|\n]*\s-jar\s")
+if profile == "implementer" and tool in {"terminal", "bash", "shell"} and cmd and APP_START.search(cmd) and is_loop_card():
+    block("starting the application refused on a loop card: the measured artifact is the packaged build "
+          "run-verify.sh makes under decisions.yaml build_profiles and starts as the parity phase does; "
+          "quarkus:dev, a dev-profile build, java -jar or any server you start is not evidence (a dev build "
+          "activates other beans and config). Run run-verify.sh --mode acceptance: it packages, starts, "
+          "replays the scenarios of this card and re-runs its read oracles, and leaves the verdicts, the destination "
+          "log and any exception under verification/parity; the brief is their digest.")
+
+# A green paved-road audit IS the review: the road declares that audit as the
+# whole check (it reads the official log and every KEEP artifact). the v6 M1
+# reviewer spent nine minutes re-parsing attachments after a green audit and
+# the v7 one went looking for the log file it had just audited; both had nothing left
+# to learn. After green, the only moves are the terminators.
+REVIEW_DONE_TOOLS = {"kanban_complete", "complete_task", "kanban_request_changes", "request_changes", "kanban_block", "block_task", "kanban_comment", "comment"}
+
+def reviewer_after_green():
+    if profile != "reviewer" or not paved_road_audit_green():
+        return False
+    if tool in REVIEW_DONE_TOOLS or is_complete() or is_block():
+        return False
+    blob = " ".join([tool, cmd, str(inp.get("action") or "")])
+    if "kanban_request_changes" in blob or "kanban_comment" in blob:
+        return False
+    # re-running the audit itself stays allowed (SOUL self-correction)
+    if "assert-paved-road-audit" in (cmd or ""):
+        return False
+    return True
+
+if reviewer_after_green():
+    block("refused: the paved-road audit for this card already exited 0, and that audit "
+          "IS the review (it read the official log and every KEEP artifact). Call "
+          "kanban_complete now with a one-line summary. Nothing else is left to check; "
+          "use kanban_request_changes only if you make the audit red.")
+
+if is_request_review() and profile == "implementer" and loop_verdict_recorded():
+    block("kanban_request_review refused on a loop card: the loop record already names this "
+          "card with its verdict (ACCEPTED/REVERTED). kanban_complete is the terminator here; "
+          "no reviewer seat runs for a loop step.")
+
+if is_complete():
+    if profile == "implementer":
+        if loop_verdict_recorded() and loop_road_ran():
+            # paved-road-m3: the transaction is the audit; brief, run-verify and
+            # advance ran in this log and the loop record names this card
+            record_complete_invocation("allow_implementer_loop")
+        elif loop_verdict_recorded():
+            record_complete_invocation("refuse_implementer_road")
+            block("kanban_complete refused: the loop record names this card, but this log "
+                  "does not show brief.py, run-verify.sh and advance.py each run as a "
+                  "terminal command (paved-road-m3). Run the road, then complete.")
+        else:
+            record_complete_invocation("refuse_implementer")
+            block("kanban_complete refused: implementer terminator is "
+                  "kanban_request_review on M1/M2 cards; on a loop card kanban_complete is "
+                  "allowed only after advance.py recorded a verdict for this card. If you "
+                  "already called kanban_request_review, the review handoff IS your terminator: "
+                  "end the turn now and do not answer a nudge to finish with kanban_complete or kanban_block.")
+    if profile == "reviewer" and not paved_road_audit_green() and not loop_verdict_recorded():
+        record_complete_invocation("refuse_reviewer_audit")
+        block("kanban_complete refused: paved-road audit last exit not 0 and no loop "
+              "verdict (ACCEPTED/REVERTED/DEFERRED from advance.py) is recorded; "
+              "kanban_request_changes is the terminator")
+    gate = bound_gate_red()
+    if gate:
+        record_complete_invocation("refuse_bound_gate")
+        block("kanban_complete refused: bound gate %s last exited non-zero; "
+              "kanban_block is the terminator" % gate)
+    record_complete_invocation("allow")
+
+def collect(obj, acc):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in {
+                "path", "file", "filename", "target", "dest",
+                "destination", "old_path", "new_path",
+            } and isinstance(v, str):
+                acc.append(v)
+            collect(v, acc)
+    elif isinstance(obj, list):
+        for x in obj:
+            collect(x, acc)
+
+def strip_env_assignments(s):
+    s = re.sub(r"\bexport\s+[A-Za-z_][A-Za-z0-9_]*=[^\s;|&]+", " ", s)
+    s = re.sub(r"(?:^|[\s;|&])[A-Za-z_][A-Za-z0-9_]*=[^\s;|&]+", " ", s)
+    return s
+
+def toolchain_read(rp):
+    n = (rp or "").replace("\\", "/")
+    for prefix in (
+        "/dev/null", "/dev/stdout", "/dev/stderr", "/dev/fd",
+        "/usr/lib/jvm",
+    ):
+        if n == prefix or n.startswith(prefix + "/"):
+            return True
+    jh = (os.environ.get("JAVA_HOME") or "").strip()
+    if jh:
+        try:
+            jr = os.path.realpath(jh).replace("\\", "/")
+        except OSError:
+            jr = jh.replace("\\", "/")
+        if n == jr or n.startswith(jr + "/"):
+            return True
+    return False
+
+_HTTP_FS_PREFIXES = (
+    "/projects", "/home", "/usr", "/opt", "/tmp", "/var", "/etc",
+    "/bin", "/src/", "/dev/", "/lib", "/proc", "/sys",
+)
+_HTTP_FILE_EXT = {
+    "java", "xml", "json", "md", "properties", "yaml", "yml", "sh", "py",
+}
+
+def looks_like_http_route(p):
+    n = str(p or "").replace("\\", "/")
+    if not n.startswith("/") or n.startswith("//"):
+        return False
+    for pref in _HTTP_FS_PREFIXES:
+        if n == pref.rstrip("/") or n.startswith(pref if pref.endswith("/") else pref + "/"):
+            return False
+    last = n.rsplit("/", 1)[-1]
+    if "." in last and last.rsplit(".", 1)[-1].lower() in _HTTP_FILE_EXT:
+        return False
+    return True
+
+paths = []
+collect(inp, paths)
+# H9a: the `patch` tool in mode patch names its files INSIDE the V4A text
+# (`*** Update File: path`), not in a path argument; without this the write
+# was invisible to every check below
+if tool == "patch" and isinstance(inp.get("patch"), str):
+    for _m in re.finditer(r"^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s*(.+?)\s*$|^\*\*\*\s+Move\s+to:\s*(.+?)\s*$", inp["patch"], re.M):
+        _pth = _m.group(1) or _m.group(2)
+        if _pth and _pth not in paths:
+            paths.append(_pth)
+cmd_for_paths = strip_env_assignments(cmd) if cmd else ""
+if cmd_for_paths:
+    for tok in cmd_for_paths.split():
+        if tok.startswith("/") or tok.startswith("./") or tok.startswith("../"):
+            if not looks_like_http_route(tok):
+                paths.append(tok)
+    cmd_scan = re.sub(r"https?://\S+", " ", cmd_for_paths)
+    for m in re.finditer(r"(?:~/|\.\./|\./|(?<![\w:])/)(?!\d)[^\s\"{}()]+", cmd_scan):
+        span = m.group(0)
+        span = span.split(",")[0]
+        while span and span[-1] in ".,;:" + chr(39) + chr(34):
+            span = span[:-1]
+        if span.startswith("~"):
+            span = os.path.expanduser(span)
+        if looks_like_http_route(span):
+            continue
+        if span not in paths:
+            paths.append(span)
+    if re.search(r"\bmkdir\b", cmd_for_paths):
+        parts = cmd_for_paths.split()
+        i = 0
+        while i < len(parts):
+            base = parts[i].rsplit("/", 1)[-1]
+            if base == "mkdir":
+                i += 1
+                while i < len(parts) and parts[i].startswith("-"):
+                    i += 1
+                while i < len(parts):
+                    arg = parts[i]
+                    if arg in ("&&", "||", ";", "|"):
+                        break
+                    if arg.startswith("-"):
+                        i += 1
+                        continue
+                    if arg not in paths:
+                        paths.append(arg)
+                    i += 1
+                continue
+            i += 1
+
+def write_effect_paths(c):
+    """Destination paths a command would create/truncate.
+
+    Inspects write APIs in the command text (open mode, Path.write_*),
+    not the interpreter name. Adding python/perl/node to looks_like_write_cmd
+    is an argv list and misses the next bypass.
+
+    Command-text matching, not a syscall. Closes dest-13 python3 -c
+    open(..., w) and Path.write_text/bytes. Cannot see python3 script.py,
+    exec/eval, a heredoc on stdin, io.open/os.open/shutil.copy, or a
+    decoded payload. pre_tool_call never sees the write. The write-set
+    remains advisory for a terminal-capable seat (AD-020; not containment;
+    do not cite this hook as a write fence in a verdict).
+    """
+    found = []
+    if not c:
+        return found
+    q = chr(34) + chr(39)
+    open_re = (
+        r"open\(\s*[" + q + r"]([^" + q + r"]+)[" + q
+        + r"]\s*,\s*[" + q + r"]([^" + q + r"]*)[" + q + r"]"
+    )
+    path_re = (
+        r"Path\(\s*[" + q + r"]([^" + q + r"]+)[" + q
+        + r"]\s*\)\s*\.write_(?:text|bytes)"
+    )
+    for m in re.finditer(open_re, c):
+        path, mode = m.group(1), m.group(2)
+        if any(ch in mode for ch in "wax+"):
+            found.append(path)
+    for m in re.finditer(path_re, c):
+        found.append(m.group(1))
+    return found
+
+SHELL_SEPS = ("&&", "||", ";", "|", "|&")
+_PERL_INPLACE = re.compile(r"^-[pnlaw]*i(?:[.~][^\s]*)?$")
+
+def _command_segments(c):
+    """The command text split into simple commands, each a token list (shlex;
+    a quoting error falls back to whitespace), leading env assignments dropped."""
+    try:
+        import shlex
+        toks = shlex.split(c, posix=True)
+    except ValueError:
+        toks = c.split()
+    out, seg = [], []
+    for t in toks:
+        if t in SHELL_SEPS:
+            if seg:
+                out.append(seg)
+            seg = []
+        else:
+            seg.append(t)
+    if seg:
+        out.append(seg)
+    cleaned = []
+    for seg in out:
+        k = 0
+        while k < len(seg) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", seg[k]):
+            k += 1
+        if k < len(seg):
+            cleaned.append(seg[k:])
+    return cleaned
+
+def inplace_edit_targets(c):
+    """Files an IN-PLACE EDITOR in the command text would rewrite: sed -i /
+    --in-place (GNU, and BSD -i with an empty suffix) and perl -i / -pi / -ni[.bak].
+
+    dest v9 t_4d75569c: the file tool refused Pet.java (H4) and the worker fell
+    back to `sed -i` through the terminal, which nothing here looked at -- the
+    write set only ever saw the file tool, redirections, tee and cp/mv/rm. The
+    operands are named plainly in the command, so they are read from it, the
+    same command-text matching as write_effect_paths and with the same caveat:
+    a guardrail for a terminal-capable seat, not containment (AD-020)."""
+    found = []
+    if not c:
+        return found
+    for seg in _command_segments(c):
+        base = seg[0].rsplit("/", 1)[-1]
+        args = seg[1:]
+        if base == "sed":
+            inplace, script_seen, files = False, False, []
+            i = 0
+            while i < len(args):
+                a = args[i]
+                if a == "--":
+                    rest = args[i + 1:]
+                    if not script_seen and rest:
+                        rest = rest[1:]
+                    files.extend(rest)
+                    break
+                if a.startswith("-") and a != "-":
+                    if a.startswith("-i") or a.startswith("--in-place"):
+                        inplace = True
+                        if a == "-i" and i + 1 < len(args) and args[i + 1] == "":
+                            i += 2  # BSD: -i followed by an empty backup suffix
+                            continue
+                    if a in ("-e", "--expression", "-f", "--file"):
+                        script_seen = True
+                        i += 2
+                        continue
+                    if a in ("-l", "--line-length"):
+                        i += 2
+                        continue
+                    if a.startswith("--expression=") or a.startswith("--file=") or (a.startswith("-e") and len(a) > 2) or (a.startswith("-f") and len(a) > 2):
+                        script_seen = True
+                    i += 1
+                    continue
+                if not script_seen:
+                    script_seen = True
+                    i += 1
+                    continue
+                files.append(a)
+                i += 1
+            if inplace:
+                found.extend(f for f in files if f)
+        elif base == "perl":
+            if not any(_PERL_INPLACE.match(a) for a in args):
+                continue
+            files, i = [], 0
+            while i < len(args):
+                a = args[i]
+                if a == "--":
+                    files.extend(args[i + 1:])
+                    break
+                if a in ("-e", "-E", "-I", "-M", "-m"):
+                    i += 2
+                    continue
+                if a.startswith("-"):
+                    i += 1
+                    continue
+                files.append(a)
+                i += 1
+            found.extend(f for f in files if f)
+    return found
+
+def redirect_targets(c):
+    """Files a shell REDIRECTION in the command text would create or extend
+    (> and >>), by name. Relative operands were invisible before: the path
+    collector reads only absolute, ./ and ../ tokens, so `echo x > src/A.java`
+    was a write the write set never saw (H4). /dev/*, `>&n` and process
+    substitutions are not files."""
+    found = []
+    if not c:
+        return found
+    for m in re.finditer(r"(?<![<>])>>?\s*([^\s|;&<>()]+)", c):
+        target = m.group(1).strip(chr(34) + chr(39))
+        if not target or target.startswith("/dev/") or target.startswith("&"):
+            continue
+        found.append(target)
+    return found
+
+effect = write_effect_paths(cmd)
+for p in effect:
+    if p not in paths:
+        paths.append(p)
+# in-place edits and redirections name their operands in the command text:
+# they are paths of the command like any other (checked against the allow
+# root and, when the command is a write, against the write set)
+for p in inplace_edit_targets(cmd) + redirect_targets(cmd):
+    if p not in paths:
+        paths.append(p)
+
+roots = []
+for part in allow.split(os.pathsep):
+    part = part.strip()
+    if part:
+        try:
+            roots.append(os.path.realpath(part))
+        except OSError:
+            block("allow root %s unresolved" % part)
+
+if not roots:
+    if cmd or paths:
+        block("no allow root")
+    print("{}")
+    raise SystemExit(0)
+
+def inside(rp):
+    for allow_r in roots:
+        if rp == allow_r or rp.startswith(allow_r + os.sep):
+            return True
+    return False
+
+proven = False
+only_toolchain = True
+for p in paths:
+    rp = resolve_rp(p)
+    if toolchain_read(rp) or toolchain_read(str(p).replace("\\", "/")):
+        continue
+    only_toolchain = False
+    if inside(rp):
+        proven = True
+    else:
+        block("path %s resolves outside allow root" % p)
+if paths and only_toolchain:
+    print("{}")
+    raise SystemExit(0)
+
+def dest_root():
+    wr = (os.environ.get("HERMES_WRITE_SAFE_ROOT") or "").strip()
+    if wr:
+        try:
+            return os.path.realpath(wr)
+        except OSError:
+            return wr
+    return roots[0] if roots else ""
+
+def dest_rel(rp):
+    root = dest_root()
+    if not root:
+        return None
+    if rp == root:
+        return ""
+    if rp.startswith(root + os.sep):
+        return rp[len(root) + 1:].replace("\\", "/")
+    return None
+
+def list_from_fw(fw):
+    if not isinstance(fw, list):
+        return None
+    out = []
+    for item in fw:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip().replace("\\", "/"))
+    return out
+
+def parse_writeset_blob(blob):
+    if not blob or not isinstance(blob, str):
+        return None
+    blobs = [blob]
+    for m in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", blob, re.S):
+        blobs.append(m.group(1))
+    idx = blob.find("files_writable")
+    if idx >= 0:
+        brace = blob.rfind("{", 0, idx)
+        if brace >= 0:
+            blobs.append(blob[brace:])
+    for cand in blobs:
+        data = None
+        try:
+            data = json.loads(cand)
+        except json.JSONDecodeError:
+            start = cand.find("{")
+            end = cand.rfind("}")
+            if start >= 0 and end > start:
+                try:
+                    data = json.loads(cand[start:end + 1])
+                except json.JSONDecodeError:
+                    data = None
+        if not isinstance(data, dict):
+            continue
+        if isinstance(data.get("body"), dict):
+            data = data["body"]
+        elif isinstance(data.get("task"), dict):
+            inner = data["task"]
+            if isinstance(inner.get("body"), dict):
+                data = inner["body"]
+            elif isinstance(inner.get("description"), str):
+                nested = parse_writeset_blob(inner["description"])
+                if nested is not None:
+                    return nested
+                data = inner
+        if "files_writable" in data or "write_set" in data:
+            parsed = list_from_fw(data.get("files_writable") or data.get("write_set"))
+            if parsed is not None:
+                return parsed
+    m = re.search(chr(34) + r"files_writable" + r"\s*:\s*(\[[^\]]*\])", blob)
+    if m:
+        try:
+            arr = json.loads(m.group(1))
+            parsed = list_from_fw(arr)
+            if parsed is not None:
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    return None
+
+def load_body_from_sqlite():
+    task = (os.environ.get("HERMES_KANBAN_TASK") or "").strip()
+    if not task:
+        return ""
+    cands = []
+    for key in ("HERMES_KANBAN_DB", "HERMES_KANBAN_DB_PATH"):
+        v = (os.environ.get(key) or "").strip()
+        if v:
+            cands.append(v)
+    home = (os.environ.get("HERMES_HOME") or "").strip()
+    if home:
+        cands.extend([
+            os.path.join(home, "kanban.db"),
+            os.path.join(home, "kanban", "kanban.db"),
+        ])
+    for db in cands:
+        if not db or not os.path.isfile(db):
+            continue
+        try:
+            import sqlite3
+            con = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
+        except Exception:
+            continue
+        try:
+            tables = [r[0] for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type=?",
+                ("table",),
+            )]
+            for table in tables:
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", table or ""):
+                    continue
+                if table not in {"tasks", "kanban_tasks"} and "task" not in table.lower():
+                    continue
+                cols = [r[1] for r in con.execute("PRAGMA table_info(%s)" % table)]
+                idcol = "id" if "id" in cols else ("task_id" if "task_id" in cols else None)
+                bodycol = next(
+                    (c for c in ("description", "body", "prompt", "content") if c in cols),
+                    None,
+                )
+                if not idcol or not bodycol:
+                    continue
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", idcol):
+                    continue
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", bodycol):
+                    continue
+                row = con.execute(
+                    "SELECT %s FROM %s WHERE %s = ?" % (bodycol, table, idcol),
+                    (task,),
+                ).fetchone()
+                if row and row[0]:
+                    return str(row[0])
+        except Exception:
+            pass
+        finally:
+            try:
+                con.close()
+            except Exception:
+                pass
+    return ""
+
+def load_writeset():
+    if "K2_FILES_WRITABLE" in os.environ:
+        raw = os.environ.get("K2_FILES_WRITABLE") or ""
+        return [p.strip().replace("\\", "/") for p in raw.split(os.pathsep) if p.strip()]
+    blob = ""
+    body_path = (os.environ.get("K2_CARD_BODY") or "").strip()
+    if body_path and os.path.isfile(body_path):
+        try:
+            blob = open(body_path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            blob = ""
+    if not blob:
+        blob = load_body_from_sqlite()
+    return parse_writeset_blob(blob)
+
+def load_phase():
+    envp = (os.environ.get("K2_CARD_PHASE") or "").strip().upper()
+    if envp:
+        return envp
+    blob = ""
+    body_path = (os.environ.get("K2_CARD_BODY") or "").strip()
+    if body_path and os.path.isfile(body_path):
+        try:
+            blob = open(body_path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            blob = ""
+    if not blob:
+        blob = load_body_from_sqlite()
+    if not blob:
+        return ""
+    m = re.search(chr(34) + r"phase" + r"\s*:\s*" + chr(34) + r"([A-Za-z0-9_]+)", blob)
+    return m.group(1).upper() if m else ""
+
+def writeset_ok(rel, writeset):
+    if not rel:
+        return True
+    rel = rel.replace("\\", "/").lstrip("./")
+    for w in writeset:
+        ww = w.replace("\\", "/").lstrip("./").strip("/")
+        if not ww:
+            continue
+        if rel == ww or rel.startswith(ww + "/"):
+            return True
+    return False
+
+def writeset_ok_mkdir(rel, writeset):
+    if writeset_ok(rel, writeset):
+        return True
+    if not rel:
+        return True
+    rel = rel.replace("\\", "/").lstrip("./")
+    for w in writeset:
+        ww = w.replace("\\", "/").lstrip("./").strip("/")
+        if ww.startswith(rel + "/"):
+            return True
+    return False
+
+def is_gate_receipt_rel(rel):
+    rel = (rel or "").replace("\\", "/").lstrip("./")
+    if rel == "evidence/receipts/gates" or rel.startswith("evidence/receipts/gates/"):
+        return True
+    return "/evidence/receipts/gates/" in ("/" + rel.strip("/") + "/")
+
+WRITE_TOOLS = {
+    "write_file", "write", "patch", "edit_file", "str_replace",
+    "apply_patch", "create_file",
+}
+
+def looks_like_write_cmd(c):
+    if not c:
+        return False
+    if inplace_edit_targets(c):
+        return True
+    if re.search(r"(?:^|[^=])>(?!>)", c) and ">/dev/null" not in c.replace(" ", ""):
+        if re.search(r">\s*/dev/null\b", c):
+            pass
+        elif re.search(r"[^0-9]>\s*\S+", c) or re.search(r"^\s*>\s*\S+", c):
+            if not re.search(r">\s*/dev/(null|stdout|stderr)\b", c):
+                return True
+    if re.search(r"\btee\b", c) and "/dev/null" not in c:
+        return True
+    if re.search(r"\b(?:mv|cp|rm|mkdir|install|install_name_tool)\b", c):
+        return True
+    if "quarkus:add-extension" in c or "add-extension" in c:
+        return True
+    return False
+
+def in_dest_write_sandbox(rp):
+    root = dest_root()
+    if not root:
+        return False
+    return rp == root or rp.startswith(root + os.sep)
+
+# advance.py REFUSE: LOOP_SCRATCH_IN_TREE (no attempt spent) names untracked
+# files outside the migration product that moved the candidate digest; the
+# legal next step is to remove them and run advance again. Its stderr line is
+#   REFUSE: LOOP_SCRATCH_IN_TREE <n> untracked file(s) outside this
+#   migration<apostrophe>s product sit in the tree and moved the candidate digest: <p1>, <p2>[, ...]. The
+#   verified candidate is otherwise intact, ...
+# (one line; paths relative to the destination root, ", "-joined, at most 8,
+# then ", ..." when there were more). While the LAST advance invocation in
+# this card log printed it, an rm whose every operand is a named path or lies
+# under one is allowed; nothing else is (dest v9: the removal was refused as a
+# product-tree write and the worker could only block).
+SCRATCH_REFUSAL = re.compile(
+    r"REFUSE: LOOP_SCRATCH_IN_TREE \d+ untracked file\(s\) outside this migration.s product sit in the tree "
+    r"and moved the candidate digest: (.*?)\. The verified candidate is otherwise intact")
+SCRATCH_PRODUCT_DIRS = ("src", ".mvn")
+SCRATCH_PRODUCT_FILES = ("pom.xml", "decisions.yaml", "migration.yaml", "mvnw", "mvnw.cmd")
+RM_FLAGS = re.compile(r"^-[rRf]+$|^--(?:recursive|force)$")
+
+def scratch_refusal_named():
+    """The paths the LAST advance.py invocation in this card log refused as
+    scratch, or None when that invocation printed anything else."""
+    task = hook_task_id()
+    home = kanban_root_home()
+    if not task or not home:
+        return None
+    log = os.path.join(home, "kanban", "logs", "%s.log" % task)
+    try:
+        text = open(log, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return None
+    named = None
+    in_advance = False
+    for line in text.splitlines():
+        if "$" in line and "fix-until-green/scripts/advance" in line:
+            in_advance = "[exit 1]" in line
+            named = None
+            continue
+        if "┊" in line:
+            # any later tool call ends advance.py output
+            in_advance = False
+            continue
+        if not in_advance or named is not None:
+            continue
+        m = SCRATCH_REFUSAL.search(line)
+        if m:
+            named = [x.strip() for x in m.group(1).split(", ") if x.strip() and x.strip() != "..."]
+    return named
+
+def scratch_is_product(rel):
+    return (rel in SCRATCH_PRODUCT_FILES
+            or any(rel == d or rel.startswith(d + "/") for d in SCRATCH_PRODUCT_DIRS))
+
+def scratch_removal_allowed(c, unmatched):
+    """rm [-r|-f]... <operands> where every operand is a path the scratch
+    refusal named (or under one). One simple command only: no operators,
+    redirections, substitutions, globs, ~, .., or paths outside the root."""
+    if not c or not any("fix-until-green/scripts/advance" in g for g in unmatched):
+        return False
+    if re.search(r"[;&|<>`$*?\[\]{}~\n\\]", c) or chr(39) in c or chr(34) in c:
+        return False
+    toks = c.split()
+    if len(toks) < 2 or toks[0] != "rm":
+        return False
+    ops = []
+    dashdash = False
+    for t in toks[1:]:
+        if not dashdash and t == "--":
+            dashdash = True
+        elif not dashdash and t.startswith("-"):
+            if not RM_FLAGS.match(t):
+                return False
+        else:
+            ops.append(t)
+    if not ops:
+        return False
+    named = scratch_refusal_named()
+    if not named:
+        return False
+    root = dest_root()
+    if not root:
+        return False
+    names = [n.strip("/") for n in named]
+    for op in ops:
+        o = op.rstrip("/")
+        if not o or ".." in o.split("/") or o in (".",):
+            return False
+        if os.path.isabs(o):
+            ab = o
+        elif hook_cwd:
+            ab = os.path.join(hook_cwd, o)
+        else:
+            return False
+        try:
+            rp = os.path.join(os.path.realpath(os.path.dirname(os.path.normpath(ab))), os.path.basename(os.path.normpath(ab)))
+        except OSError:
+            return False
+        rel = dest_rel(rp)
+        if not rel or scratch_is_product(rel):
+            return False
+        if not any(rel == n or rel.startswith(n + "/") for n in names if n and not scratch_is_product(n)):
+            return False
+    return True
+
+scratch_ok = False
+
+# dest-22 P0-B: after a mandated needle last-exited 1, the implementer
+# may re-run that needle or kanban_block. Product-tree writes, k4_mint
+# / k4_convert continue, and request_review are refused. Text in the
+# M2 body did not stop dest-20/21/22. Residual: interpreter script.py
+# that is not a bound-gate name (AD-020). Reviewer is not this gate.
+if profile == "implementer" and not is_block() and not is_complete():
+    unmatched = bound_gates_red()
+    if unmatched:
+        blob = cmd or ""
+        if any(g in blob for g in unmatched):
+            pass
+        elif "fix-until-green/scripts/run-verify.sh" in blob and any("fix-until-green/scripts/advance" in g for g in unmatched):
+            # a refused advance (LOOP_CANDIDATE_CHANGED, LOOP_STALE_STATE) is
+            # cleared by re-measuring and advancing again: run-verify.sh is the
+            # step before advance on the loop road (v6 t_57aef986 was refused
+            # run-verify here and could only block)
+            pass
+        elif scratch_removal_allowed(cmd, unmatched):
+            # the removal advance.py LOOP_SCRATCH_IN_TREE asked for, of exactly
+            # the paths it named; the write-set rules below do not apply to it
+            scratch_ok = True
+        elif is_request_review():
+            block(
+                "kanban_request_review refused: mandated needle %s last "
+                "exited non-zero; re-run that needle or kanban_block"
+                % unmatched[0]
+            )
+        elif tool in WRITE_TOOLS or looks_like_write_cmd(cmd) or effect:
+            block(
+                "product-tree write refused: mandated needle %s last "
+                "exited non-zero; re-run that needle or kanban_block"
+                % unmatched[0]
+            )
+        elif tool in {"terminal", "bash", "shell"} and blob.strip():
+            block(
+                "continue after mandated [exit 1] refused: needle %s last "
+                "exited non-zero; re-run that needle or kanban_block"
+                % unmatched[0]
+            )
+
+# Mirrors planner.paths.PRODUCT_EXEMPT: harness state, the frozen legacy copy
+# and build output are not product paths, so a loop card may write them.
+LOOP_EXEMPT_DIRS = ("evidence", "verification", ".hermes", ".derived", "target", ".git")
+
+def loop_write_set():
+    """The write set of the loop card K4 issued for this task, or None."""
+    task = hook_task_id()
+    if not task:
+        return None
+    roots = [x for x in allow.split(os.pathsep) if x] + [os.environ.get("HERMES_WRITE_SAFE_ROOT") or ""]
+    for r in roots:
+        if not r:
+            continue
+        try:
+            doc = json.load(open(os.path.join(r, "verification", "loop", "issued.json"), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(doc, dict) and str(doc.get("task_id") or "") == task:
+            ws = doc.get("write_set")
+            return [str(x) for x in ws] if isinstance(ws, list) else []
+    return None
+
+def loop_product_write_refusals(candidates):
+    """Product paths a loop card may not write: advance.py reverts the whole
+    candidate over one of them, so a card that scratches a file outside its
+    write set loses all of its work. v7 t_f6357940 removed 16 compile errors
+    correctly and was reverted for a tmp-deps/ directory it had unpacked jars
+    into. Refusing the write costs one tool call instead of one card."""
+    ws = loop_write_set()
+    if ws is None:
+        return []
+    out = []
+    for p in candidates:
+        rel = dest_rel(resolve_rp(p)) or ""
+        if not rel or rel in ws:
+            continue
+        if any(rel == e or rel.startswith(e + "/") for e in LOOP_EXEMPT_DIRS):
+            continue
+        out.append(rel)
+    return sorted(set(out))
+
+GENERATOR_DECLARATION = ("skills", "gates", "generate-product-tests", "scripts", "parity_pom.py")
+
+def harness_owned_roots():
+    """The generated test roots, read from the generator OWN declaration
+    (parity_pom.DEFAULT_OUT / DEFAULT_RESOURCES and the roots its manifest
+    records), never from a literal here. [] when no declaration is readable."""
+    out = set()
+    manifest_rel = ""
+    cands = []
+    hook_dir = (os.environ.get("K2_HOOK_DIR") or "").strip()
+    if hook_dir:
+        cands.append(os.path.join(os.path.dirname(hook_dir), *GENERATOR_DECLARATION))
+    root = dest_root()
+    if root:
+        cands.append(os.path.join(root, ".hermes", *GENERATOR_DECLARATION))
+    for cand in cands:
+        if not os.path.isfile(cand):
+            continue
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("_k2_generator_declaration", cand)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        except Exception:
+            continue
+        for name in ("DEFAULT_OUT", "DEFAULT_RESOURCES"):
+            v = str(getattr(mod, name, "") or "").strip().strip("/")
+            if v:
+                out.add(v)
+        manifest_rel = str(getattr(mod, "GENERATED_MANIFEST", "") or "")
+        break
+    if root and manifest_rel:
+        try:
+            man = json.load(open(os.path.join(root, manifest_rel), encoding="utf-8"))
+        except (OSError, ValueError):
+            man = {}
+        prof = man.get("pom_profile") if isinstance(man, dict) and isinstance(man.get("pom_profile"), dict) else {}
+        for v in ((man.get("out") if isinstance(man, dict) else ""), (man.get("resources") if isinstance(man, dict) else ""),
+                  prof.get("test_source"), prof.get("test_resources")):
+            v = str(v or "").strip().strip("/")
+            if v:
+                out.add(v)
+    return sorted(out)
+
+def harness_owned_hits(candidates, command):
+    roots = harness_owned_roots()
+    if not roots:
+        return [], roots
+    hits = []
+    for p in candidates:
+        rel = dest_rel(resolve_rp(p)) or ""
+        if rel and any(rel == r or rel.startswith(r + "/") for r in roots):
+            hits.append(rel)
+    if command and looks_like_write_cmd(command):
+        for r in roots:
+            if re.search(r"(?:^|[\s=/.]|" + chr(34) + "|" + chr(39) + ")" + re.escape(r) + r"(?:/|\s|$|" + chr(34) + "|" + chr(39) + ")", command):
+                hits.append(r)
+    return sorted(set(hits)), roots
+
+if tool in WRITE_TOOLS or looks_like_write_cmd(cmd) or effect:
+    if profile == "implementer" or loop_write_set() is not None:
+        owned, owned_roots = harness_owned_hits(list(effect) if effect else list(paths), cmd)
+        if owned:
+            block("write refused: %s is under a harness-owned generated test root (%s). The generated product "
+                  "tests belong to generate-product-tests (ADR-015); no worker has test-source write authority "
+                  "(ADR-019), whatever the card write set says. A defect there is a harness finding: "
+                  "kanban_block kind=needs_input naming it." % (owned[0], ", ".join(owned_roots)))
+    for p in paths:
+        rp = resolve_rp(p)
+        if toolchain_read(rp) or toolchain_read(str(p).replace("\\", "/")):
+            continue
+        if not in_dest_write_sandbox(rp):
+            block("write %s is outside the dest write sandbox (legacy is read-only)" % p)
+    outside = [] if scratch_ok else loop_product_write_refusals(list(effect) if effect else list(paths))
+    if outside:
+        block("write refused: %s is a product path outside this card write set (%s). "
+              "advance.py reverts the entire candidate over one such path, so the whole "
+              "card would be lost. Keep scratch work under verification/ or /tmp, and "
+              "kanban_block kind=needs_input if the fix truly needs another path."
+              % (outside[0], ", ".join(loop_write_set() or []) or "none"))
+    if looks_like_write_cmd(cmd) and (
+        "quarkus:add-extension" in cmd or re.search(r"\badd-extension\b", cmd)
+    ):
+        pom = os.path.join(dest_root() or "", "pom.xml")
+        try:
+            pr = os.path.realpath(pom) if dest_root() else "pom.xml"
+        except OSError:
+            pr = pom
+        if dest_root() and not in_dest_write_sandbox(pr):
+            block("write pom.xml is outside the dest write sandbox (legacy is read-only)")
+
+writeset = load_writeset()
+# H4 (dest v9 t_4d75569c): the files_writable of the card body is the write
+# set as MINTED. amend-scope.py widens the write set of the ISSUED card on the
+# record (verification/loop/issued.json), and the body is never re-minted, so
+# a file-tool write to the amended path was refused here while the acceptance
+# of the loop itself (advance.py, which checks issued.json) would have taken
+# it -- and the worker fell back to sed -i through the terminal. The issued
+# record is the authority for the write set of a loop card; the list in the
+# body is honoured alongside it, never instead of it.
+_issued_ws = loop_write_set()
+if writeset is not None and _issued_ws:
+    writeset = list(writeset) + [w for w in _issued_ws if w not in writeset]
+phase = load_phase()
+if phase in {"M4", "VERDICT"}:
+    if looks_like_write_cmd(cmd) and (
+        "quarkus:add-extension" in cmd or re.search(r"\badd-extension\b", cmd)
+    ):
+        block("M4 VERDICT must not implement; quarkus:add-extension writes pom.xml")
+    receipt_check = []
+    if tool in WRITE_TOOLS:
+        receipt_check = list(paths)
+    elif looks_like_write_cmd(cmd) or effect:
+        receipt_check = list(effect) if effect else list(paths)
+    for p in receipt_check:
+        rel = dest_rel(resolve_rp(p)) or str(p).replace("\\", "/").lstrip("./")
+        if is_gate_receipt_rel(rel):
+            block(
+                "M4 must not write_file gate receipts; runners write "
+                "evidence/receipts/gates/; compose-m4-verdict consumes"
+            )
+    if writeset is None:
+        writeset = ["evidence/"]
+    else:
+        kept = []
+        for w in writeset:
+            ww = w.replace("\\", "/").lstrip("./")
+            if ww == "evidence" or ww.startswith("evidence/"):
+                kept.append(w)
+        writeset = kept or ["evidence/"]
+story = (os.environ.get("K2_STORY_ID") or "").strip() or "this card"
+if writeset is not None and not scratch_ok:
+    rels = []
+    if tool in WRITE_TOOLS:
+        for p in paths:
+            rel = dest_rel(resolve_rp(p))
+            if rel:
+                rels.append(rel)
+    elif looks_like_write_cmd(cmd) or effect:
+        targets = list(effect) if effect else list(paths)
+        for p in targets:
+            rp = resolve_rp(p)
+            if toolchain_read(rp) or toolchain_read(str(p).replace("\\", "/")):
+                continue
+            rel = dest_rel(rp)
+            if rel:
+                rels.append(rel)
+        if looks_like_write_cmd(cmd) and (
+            "quarkus:add-extension" in cmd or re.search(r"\badd-extension\b", cmd)
+        ):
+            rels.append("pom.xml")
+    mkdir_cmd = bool(cmd and re.search(r"\bmkdir\b", cmd))
+    for rel in rels:
+        ok = writeset_ok_mkdir(rel, writeset) if mkdir_cmd else writeset_ok(rel, writeset)
+        if not ok:
+            block("write %s outside files_writable (story %s); "
+                  "do not override the write-set" % (rel or "pom.xml", story))
+
+# Architect 085408ZA AMEND 214743ZA: opacity on EVERY command, not only
+# when `not proven` (Operator 090438ZO). Prefixing an in-root path must
+# not disable the dest-3 vector. Still a guardrail (AD-020). OBJECT argv[0]
+# allowlist. OBJECT any-pathless cwd ALLOW.
+_OPAQUE = (
+    r"base64\s+(?:-d\b|--decode\b|-D\b)",
+    r"\bxxd\s+-r\b",
+    r"printf\s+[" + chr(34) + chr(39) + r"]\\x",
+    r"\$" + chr(39) + r"\\x",
+    r"\beval\b",
+)
+
+if cmd.strip():
+    for _rx in _OPAQUE:
+        if re.search(_rx, cmd, re.IGNORECASE):
+            block("opaque command construction: the path this touches is not "
+                  "visible. If the access is legitimate, name the path plainly "
+                  "or ask for it in K2_ALLOW_ROOT. Do not encode it.")
+
+if cmd_for_paths.strip() and not proven:
+    if hook_cwd:
+        try:
+            cr = os.path.realpath(hook_cwd)
+        except OSError:
+            block("cwd unresolved")
+        if inside(cr):
+            print("{}")
+            raise SystemExit(0)
+    block("unproven command path")
+
+print("{}")
+'

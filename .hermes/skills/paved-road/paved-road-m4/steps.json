@@ -1,0 +1,69 @@
+{
+  "kind": "m4-verify",
+  "artifact": "m4-verdict",
+  "steps": [
+    {
+      "id": "capture-source-oracles",
+      "backing": "skill",
+      "skill": "capture-source-oracles",
+      "note": "Read what the comparison means before running it. The destination is compared against what the SOURCE was recorded doing at M1: compare-runtime-parity.py per admitted entry point against verification/source-oracles/<slug>.json, compare-scenario-parity.py per scenario the approved corpus requires (it restores the declared initial state, proves the destination is in it, replays the complete recorded request with its body and headers, and reads back every declared effect), then the receipt-bound summary. Expected values come only from the M1 capture; never from the card body, never from what the destination happens to return. Nothing here captures the source: that happened at M1, and re-capturing now would record the source's answer to a question the destination has already been asked. This step is the reading; the next step is the running."
+    },
+    {
+      "id": "parity",
+      "backing": "native",
+      "native": "run-parity.py",
+      "keep": [
+        "verification/parity/receipt.json",
+        "verification/parity/_run.json"
+      ],
+      "note": "The batch parity runner: one command for the whole phase, in this order -- every scenario the corpus declares in corpus order with the reset command, then every admitted entry point that has a captured http read oracle, then compose-parity-receipt.py last. It starts the packaged destination against the decided datasource unless --dest-url names one someone else is running, and stops what it started. Never a per-entry-point loop driven by the worker: measured on v9 (t_32c82390) that loop ran the composer first and never compared a single entry point, and 24 of 34 ended 'no parity record'. The runner exits 0 whenever every child ran and the receipt was composed; a receipt verdict of FAIL or INCONCLUSIVE is the measurement, not a runner failure, and it is carried into the verdict by compose-m4-verdict."
+    },
+    {
+      "id": "generate-product-tests",
+      "backing": "skill",
+      "skill": "generate-product-tests",
+      "keep": [
+        "evidence/tests/generated-manifest.json"
+      ],
+      "note": "The harness generates the product acceptance tests from the M1 captures (ADR-015): one @QuarkusTest case per qualified scenario, asserting the status, canonical body, required headers and declared effects the SOURCE was recorded producing. A worker never authors or weakens one of these expectations, and an unqualified scenario is a named gap in evidence/tests/generated-manifest.json rather than a silent omission. It runs HERE, after the parity runner and before the pre-verdict runner, because the rebuild the runner drives is what executes the generated cases and leaves their surefire XML for the floors. The generated sources go to src/parity-test/java (+ src/parity-test/resources), which nothing compiles except the m4-parity profile this producer writes into pom.xml: under src/test/java every M3 verify would run them, a parity finding would enter the loop's own measure, and it would revert the step that was being verified for a reason that has nothing to do with it. The pom edit is harness-owned -- it is recorded in the manifest and printed, and this step does not commit it."
+    },
+    {
+      "id": "commit-generated-tests",
+      "backing": "native",
+      "native": "commit-generated-tests.py",
+      "note": "The generated suite is committed here, as the harness-owned files it is. The generator writes src/parity-test/java at M4, into a tree assert-retrievable-tree still requires to be committed against HEAD -- an untracked generated file is dirt to that gate, and the gate is right: a verdict composed over a tree nobody can retrieve says nothing about what was measured. This step is what makes the tree retrievable, and it commits ONLY what evidence/tests/generated-manifest.json lists plus the manifest and the generated roots: it refuses first when generate-product-tests.py --check does (committing an edited expectation would make the edit the harness's own) and refuses any other change to src/ or pom.xml, which belongs to whoever made it. The m4-parity profile is the BOOTSTRAP's (ADR-015), so pom.xml is already in HEAD when this runs. Idempotent: with nothing to commit it says so and exits 0."
+    },
+    {
+      "id": "check-domain-parity",
+      "backing": "skill",
+      "skill": "check-domain-parity",
+      "note": "G-1..G-4 measured against the referent. Each evaluator writes its own verdict; a REFUSE here is a real outcome, not something to argue with."
+    },
+    {
+      "id": "pre-verdict",
+      "backing": "native",
+      "native": "run-m4-pre-verdict.sh",
+      "keep": [
+        "evidence/receipts/gates"
+      ],
+      "note": "The runner, fail-closed: snapshot the test reports before any rebuild, parse surefire, refuse a card body that pre-specifies a verdict, assert the tree is retrievable, run the pinned feeding gates so their receipts exist, then assert-pinned-gates-ran, assert-g4-claim-consistency and assert-no-fence-evasion. Feeding gates must run before the receipts are asserted or the floor refuses on an empty directory."
+    },
+    {
+      "id": "compose-m4-verdict",
+      "backing": "skill",
+      "skill": "compose-m4-verdict",
+      "producer": true,
+      "keep": [
+        "evidence/verdicts/m4-verdict.json",
+        "evidence/verdicts/coverage-account.json"
+      ],
+      "note": "Author the verdict from the measured exit codes only, with an explicit failed_floors, and compose the coverage account (compose-coverage-account.py) from decisions.yaml and the parity receipt so every ADR-retired source is accounted for. A non-empty failed_floors makes the verdict REFUSE; a remaining coverage gap is legal but must be visible in coverage_account. Checkers never author the verdict and the card body never pre-specifies it."
+    },
+    {
+      "id": "check-release-readiness",
+      "backing": "skill",
+      "skill": "check-release-readiness",
+      "note": "Lint what was just written: the verdict against its schema, the floor receipts, the claim tokens, and the coverage account against decisions.yaml and the parity receipt (assert-coverage-account.py). This step can only agree or refuse; it cannot change the verdict or the account."
+    }
+  ]
+}

@@ -1,0 +1,427 @@
+schemaVersion: 2.2.2
+metadata:
+  name: spring-petclinic-rest-legacy-v10
+attributes:
+  # Per-workspace PVC: the shared per-user claim is RWO and multi-attaches
+  # when a second workspace starts while another is running (observed
+  # live on round3's first start; run #2's workspace was patched by hand).
+  controller.devfile.io/storage-type: per-workspace
+  # DWO debug-start keeps a failed postStart container sleeping
+  # progressTimeout so /tmp/poststart-{stdout,stderr}.txt stay readable.
+  # Do not tee the hook to PVC (Architect 125103ZA).
+  controller.devfile.io/debug-start: "true"
+  # In-cluster path to the MaaS gateway: see scripts/patch-workspace-maas-route.sh.
+  # The public hostname resolves to the AWS load balancer, and that path drops a
+  # response stream that stays silent for ~8 min (vLLM buffers a whole tool call;
+  # measured 2026-09-10, pilot v6). The fix is a pod hostAlias sending the same
+  # hostname to the gateway's fixed ClusterIP (stage 040
+  # service-maas-gateway-internal.yaml), so TLS and the HTTPRoute host match are
+  # unchanged and only NAT and the ELB are gone.
+  #
+  # It is NOT templated here on purpose. A hostAlias hostname must be a bare
+  # RFC 1123 host; deriving it from a scaffolder URL value produced
+  # "maas.<domain>/#https://github.com/<owner>/<repo>" and the workspace
+  # deployment was rejected outright (v7 first start, 2026-09-10). The Operator
+  # applies it after creation with the script above, which reads the host and IP
+  # from the cluster and validates both before patching.
+# The source initializer is the only writer of the separate legacy-input
+# volume. The worker receives that volume read-only; the IDE folder list is
+# reordered after injection so legacy remains the MTA exploration target.
+projects:
+  - name: modernized
+    git:
+      remotes:
+        origin: https://github.com/adnan-drina/spring-petclinic-rest-legacy-v10.git
+      checkoutFrom:
+        revision: main
+components:
+  - name: development-tooling
+    attributes:
+      # DWO 0.43 strategic merge: change ONLY this declared mount's flag,
+      # preserving generated PVC/subPath and all credentials/metadata mounts.
+      # Verify against the admitted Pod; see V10-PLAN.md source protection.
+      container-overrides:
+        volumeMounts:
+          - mountPath: /projects/legacy
+            readOnly: true
+    container:
+      # Digest-pinned overlay (ws-080). Repos are private: cluster pull
+      # needs the Quay pull secret on the workspace ServiceAccount before
+      # any dest cut. Fat postStart (VSIX curls) is expected this round.
+      image: quay.io/rhoai3-coding-demo/rhoai3-ws-080@sha256:0d3e19e298f541e2b1c5e61e86e4219fa32bee37b39987fd701ecca68457572f
+      mountSources: true
+      memoryRequest: 2Gi
+      memoryLimit: 12Gi
+      cpuRequest: 500m
+      cpuLimit: 2500m
+      env:
+        - name: QUARKUS_HTTP_HOST
+          value: 0.0.0.0
+        - name: MAVEN_OPTS
+          value: "-Dmaven.repo.local=/home/user/.m2/repository"
+        - name: QUARKUS_ANALYTICS_DISABLED
+          value: "true"
+        # OpenCode embeds Bun, and Bun 1.3+ no longer trusts the system CA
+        # store by default (oven-sh/bun#23735), so it rejects the MaaS
+        # gateway's ingress certificate.
+        - name: NODE_USE_SYSTEM_CA
+          value: "1"
+        # MTA extension pack, downloaded by init-migration-tools below.
+        - name: DEFAULT_EXTENSIONS
+          value: "/tmp/mta.vsix;/tmp/mta-core.vsix;/tmp/redhat-java.vsix;/tmp/mta-java.vsix"
+        # MTA hub connection — stable internal cluster service URL.
+        - name: HUB_URL
+          value: "http://mta-ui.openshift-mta.svc.cluster.local:8080"
+        # Force the hub active on first workspace start regardless of prior state.
+        - name: FORCE_HUB_ENABLED
+          value: "true"
+        # Skip TLS verification — OpenShift uses a custom CA not trusted by the extension.
+        - name: HUB_INSECURE
+          value: "true"
+        # Lightspeed/Kai is disabled platform-side (BACKLOG "Developer
+        # Lightspeed re-enable") — turn the extension's hub AI features off
+        # so the analysis panel starts clean.
+        - name: HUB_SOLUTION_SERVER_ENABLED
+          value: "false"
+        - name: HUB_PROFILE_SYNC_ENABLED
+          value: "false"
+        # AD-003: containerless mta-cli requires JVM_MAX_MEM or analysis can
+        # hang. Derived from memoryLimit (12Gi) with headroom for the IDE /
+        # OpenCode / Hermes — not equal to the container ceiling. Official
+        # MTA guidance recommends ~8G host RAM for large Java analyses
+        # (CLI optimize-performance); value format matches provider
+        # jvmMaxMem examples ("2G").
+        - name: JVM_MAX_MEM
+          value: "8G"
+        # AD-H §14 / Deputy E-20260813T152939Z — container-wide Hermes paths.
+        # Must NOT depend on login-shell .bashrc export: non-login processes
+        # otherwise fall back to ~/.hermes and load the generic SOUL decoy.
+        - name: HERMES_HOME
+          value: "/projects/modernized/.hermes/home"
+        - name: HERMES_MANAGED_DIR
+          value: "/projects/.platform/hermes"
+        # Architect 195231ZA: default on. Off is inspect-before-agents.
+        - name: AUTO_START_MIGRATION
+          value: "false"
+        # THIS RUN'S OWN resources, named here so the workspace depends on
+        # nothing namespace-wide. Platform code creates them at initiation
+        # (provision-migration-run, started by the dispatcher from the
+        # scaffolding push), and both secrets carry
+        # controller.devfile.io/mount-to-devworkspace-include set to EXACTLY
+        # this workspace's name — no suffix wildcard, because "<name>,<name>-*"
+        # also matched a different valid run (demo-v10-retry received
+        # demo-v10's database). They also carry watch-secret, without which
+        # DevWorkspace Operator's informer cache never holds them and nothing
+        # is mounted at all.
+        #
+        # The devfile cannot express secretKeyRef or envFrom itself: devfile
+        # 2.2.2 container env is name/value only, and DWO's container-overrides
+        # does not accept env. Naming the secrets here and VERIFYING the
+        # injection in postStart (stamp-run-resources.py --verify, which parses
+        # the endpoint rather than matching a string) is the explicit
+        # reference: a workspace that received another run's values, or none,
+        # refuses instead of migrating against the wrong database.
+        - name: MIGRATION_RUN_NAME
+          value: "spring-petclinic-rest-legacy-v10"
+        - name: PARITY_DB_SECRET
+          value: "spring-petclinic-rest-legacy-v10-parity-db"
+        - name: PARITY_CREDENTIALS_SECRET
+          value: "spring-petclinic-rest-legacy-v10-parity-credentials"
+      volumeMounts:
+        - name: legacy-input
+          path: /projects/legacy
+        - name: m2
+          path: /home/user/.m2
+      endpoints:
+        - name: quarkus-dev
+          targetPort: 8080
+          exposure: public
+          secure: false
+          protocol: https
+        # Hermes dashboard — Operator E-20260812T171806Z W1 rider:
+        # binds 0.0.0.0:9119 — che-gateway routes to the
+        # pod IP (not pod-localhost), so a localhost bind 503s the route.
+        # Public bind is auth-gated: Managed Scope seeds dashboard.basic_auth
+        # (product refuses unauthenticated non-localhost bind). Verify on
+        # fresh-seat: endpoint reachable + basic-auth login + board renders.
+        - name: hermes-dash
+          targetPort: 9119
+          exposure: public
+          secure: true
+          protocol: https
+        - name: debug
+          targetPort: 5005
+          exposure: none
+          secure: false
+          protocol: tcp
+  - name: initialize-legacy
+    container:
+      image: quay.io/rhoai3-coding-demo/rhoai3-ws-080@sha256:0d3e19e298f541e2b1c5e61e86e4219fa32bee37b39987fd701ecca68457572f
+      mountSources: false
+      memoryRequest: 128Mi
+      memoryLimit: 512Mi
+      cpuRequest: 100m
+      cpuLimit: 500m
+      env:
+        - name: LEGACY_REPO_URL
+          value: "https://github.com/adnan-drina/spring-petclinic-rest-legacy.git"
+      volumeMounts:
+        - name: legacy-input
+          path: /source
+      command: [python3, -c]
+      args:
+        - |
+          import json, os, pathlib, subprocess, urllib.parse
+          root = pathlib.Path('/source')
+          url = os.environ['LEGACY_REPO_URL']
+          u = urllib.parse.urlsplit(url)
+          if u.scheme != 'https' or not u.hostname or u.username or u.password or u.query or u.fragment or any(c.isspace() for c in url):
+              raise SystemExit('SOURCE_INPUT_REFUSED: use a credential-free HTTPS Git URL')
+          env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null', GIT_OPTIONAL_LOCKS='0')
+          def git(*args):
+              return subprocess.check_output(['git', '-c', 'credential.helper=', '-c', 'safe.directory=' + str(root), *args], env=env, text=True, timeout=240).strip()
+          receipt = root / '.git/rhoai3-source.json'
+          if receipt.exists():
+              recorded = json.loads(receipt.read_text())
+              if recorded['url'] != url or recorded['commit'] != git('-C', str(root), 'rev-parse', 'HEAD') or git('-C', str(root), 'status', '--porcelain'):
+                  raise SystemExit('SOURCE_INPUT_REFUSED: retained source differs from its initial clone')
+          else:
+              if any(root.iterdir()):
+                  raise SystemExit('SOURCE_INPUT_REFUSED: partial or unrecorded source volume; preserve it for diagnosis')
+              git('clone', '--', url, str(root))
+              recorded = {'schema': 'rhoai3.source-volume/v1', 'url': url, 'commit': git('-C', str(root), 'rev-parse', 'HEAD')}
+              receipt.write_text(json.dumps(recorded, sort_keys=True) + '\n')
+          print('SOURCE_INPUT_READY commit=' + recorded['commit'])
+  - name: legacy-input
+    volume:
+      size: 1G
+  - name: m2
+    volume:
+      size: 1G
+commands:
+  - id: initialize-legacy
+    apply:
+      component: initialize-legacy
+  - id: init-migration-tools
+    exec:
+      component: development-tooling
+      commandLine: |
+        # Two projects live in this workspace; all agent tooling roots in
+        # the modernized project (Hermes Kanban dest).
+        PROJECT_DIR="/projects/modernized"
+        PROFILE="modernized"
+        python3 -c "import os,sys; from pathlib import Path; p=Path('/projects/legacy'); sys.exit(0 if (p/'.git/rhoai3-source.json').is_file() and os.statvfs(p).f_flag & os.ST_RDONLY else 'SOURCE_INPUT_NOT_READONLY')" \
+          || { echo "ERROR: source mount is not read-only"; exit 1; }
+        # PVC subdirectory ownership belongs to the storage provisioner. Trust
+        # this exact read-only checkout, never every repository on the volume.
+        git config --global --get-all safe.directory | grep -Fxq /projects/legacy \
+          || git config --global --add safe.directory /projects/legacy
+        mkdir -p /projects/.platform
+        # The UDI base image documents JAVA_HOME_<version> variables as the
+        # supported way to select a JDK; its sdkman default (plain
+        # JAVA_HOME) is Java 17, while this project targets 21.
+        java21_home="${JAVA_HOME_21:-}"
+        if [ -z "${java21_home}" ] || [ ! -x "${java21_home}/bin/java" ]; then
+          for candidate in \
+            "${HOME}/.sdkman/candidates/java/21.0.5-tem" \
+            /home/tooling/.sdkman/candidates/java/21.0.5-tem \
+            /usr/lib/jvm/java-21-openjdk; do
+            if [ -x "${candidate}/bin/java" ]; then
+              java21_home="${candidate}"
+              break
+            fi
+          done
+        fi
+        if [ -n "${java21_home}" ] && [ -x "${java21_home}/bin/java" ]; then
+          export JAVA_HOME="${java21_home}"
+          export PATH="${JAVA_HOME}/bin:${PATH}"
+          for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
+            touch "${rc}"
+            if ! grep -q "rhoai3-coding-demo: java 21 default" "${rc}"; then
+              {
+                printf '\n'
+                printf '# rhoai3-coding-demo: java 21 default\n'
+                printf 'export JAVA_HOME="%s"\n' "${java21_home}"
+                printf 'export PATH="${JAVA_HOME}/bin:${PATH}"\n'
+              } >> "${rc}"
+            fi
+          done
+          echo "Configured Java 21 as the default shell runtime."
+        fi
+        # MTA VS Code extension pack (analysis of /projects/legacy against
+        # the platform MTA hub). The pack does not reliably resolve its
+        # dependencies from a local VSIX — pin and download MTA + redhat.java
+        # (vendor-required for mta-java; Operator E-20260817T104424Z).
+        curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --max-time 300 -o /tmp/mta.vsix "https://open-vsx.org/api/redhat/mta-vscode-extension/8.2.0/file/redhat.mta-vscode-extension-8.2.0.vsix"
+        curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --max-time 300 -o /tmp/mta-core.vsix "https://open-vsx.org/api/redhat/mta-core/8.2.0/file/redhat.mta-core-8.2.0.vsix"
+        curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --max-time 300 -o /tmp/redhat-java.vsix "https://open-vsx.org/api/redhat/java/1.47.0/file/redhat.java-1.47.0.vsix"
+        curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --max-time 300 -o /tmp/mta-java.vsix "https://open-vsx.org/api/redhat/mta-java/8.2.0/file/redhat.mta-java-8.2.0.vsix"
+        test -s /tmp/mta.vsix && test -s /tmp/mta-core.vsix && test -s /tmp/redhat-java.vsix && test -s /tmp/mta-java.vsix
+        # kubeconfig from the workspace SA so the MTA extension can reach
+        # the cluster; hub sign-in itself is interactive (OIDC device auth
+        # through the platform realm).
+        if [ ! -f /home/user/.kube/config ]; then
+          SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null || true)
+          SA_CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          API_SERVER="https://${KUBERNETES_SERVICE_HOST:-kubernetes.default.svc}:${KUBERNETES_SERVICE_PORT:-443}"
+          if [ -n "${SA_TOKEN}" ]; then
+            oc login --token="${SA_TOKEN}" --server="${API_SERVER}" \
+              --certificate-authority="${SA_CA}" 2>/dev/null || true
+            echo "kubeconfig created for MTA extension"
+          fi
+        fi
+        # JDT.LS Standard mode so mta-java registers its analysis provider
+        # without requiring a .java file to be opened first (PVC-backed).
+        if [ -f /projects/.code-workspace ]; then
+          python3 -c "import json,sys; f='/projects/.code-workspace'; ws=json.load(open(f)); ws['folders']=[{'path':'/projects/legacy'}]+[x for x in ws.get('folders',[]) if x.get('path') not in ('/projects/legacy','legacy')]; s=ws.setdefault('settings',{}); s['java.server.launchMode']='Standard'; s['mta-core.genai.enabled']=False; open(f,'w').write(json.dumps(ws,indent=2)); print('Workspace settings: JDT Standard mode, MTA GenAI disabled')" 2>&1 || true
+        fi
+        for i in $(seq 1 30); do [ -d "${PROJECT_DIR}/.git" ] && break; sleep 2; done
+        # DWO mounts ConfigMap devspace-ai-tools-init at the product default
+        # /etc/config/<name>/ (User Guide: Mount ConfigMaps). Volume first —
+        # v30 first cut Failed on 30x kube-API curl(28) with a 0-byte script.
+        INIT_VOL="/etc/config/devspace-ai-tools-init/init-ai-tools.sh"
+        INIT_TMP="/tmp/init-ai-tools.sh"
+        INIT_SH=""
+        if [ -s "${INIT_VOL}" ]; then
+          INIT_SH="${INIT_VOL}"
+          echo "init-ai-tools.sh from ConfigMap volume ${INIT_VOL}"
+        else
+          KUBE_API="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
+          KUBE_CA="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+          KUBE_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+          echo "WARN: ConfigMap volume empty at ${INIT_VOL}; falling back to kube-API fetch"
+          for i in $(seq 1 30); do
+            curl -fsS --connect-timeout 5 --max-time 20 --cacert "${KUBE_CA}" \
+              -H "Authorization: Bearer ${KUBE_TOKEN}" \
+              "${KUBE_API}/api/v1/namespaces/wksp-ai-developer/configmaps/devspace-ai-tools-init" \
+              | jq -r '.data["init-ai-tools.sh"] // empty' >"${INIT_TMP}" \
+              && [ -s "${INIT_TMP}" ] && INIT_SH="${INIT_TMP}" && break
+            sleep 2
+          done
+        fi
+        if [ -z "${INIT_SH}" ] || [ ! -s "${INIT_SH}" ]; then
+          echo "ERROR: devspace-ai-tools-init not mounted and not reachable after retries."
+          echo "Agent tooling is required; refusing a healthy workspace without it."
+          exit 1
+        fi
+        chmod 700 "${INIT_SH}" 2>/dev/null || true
+        bash "${INIT_SH}" "${PROJECT_DIR}" "${PROFILE}" \
+          || { echo "ERROR: init-ai-tools.sh failed"; exit 1; }
+        export PATH="${HOME}/.local/bin:${HERMES_MANAGED_DIR:-/projects/.platform/hermes}/bin:${PATH}"
+        if ! command -v hermes >/dev/null 2>&1; then
+          echo "ERROR: hermes missing after init-ai-tools.sh"
+          exit 1
+        fi
+        # Architect 202501ZA / 145309ZA: do not restore dest
+        # supervise-gateway.sh. Overlay persist helper is a later named GO.
+        echo "WARN: overlay persist helper not in this cut — gateway will not persist"
+        # Deputy E-20260813T152939Z — neutralize ~/.hermes/SOUL.md decoy so a
+        # mis-launched process (HERMES_HOME unset) fails loudly instead of
+        # loading the generic Nous starter identity.
+        DECOY_SOUL="${HOME}/.hermes/SOUL.md"
+        mkdir -p "${HOME}/.hermes"
+        # Use printf (not a column-0 heredoc): a bare heredoc body ends the
+        # YAML | block and Dev Spaces fails with "Can't parse devfile yaml".
+        printf '%s\n' \
+          '# REFUSE - wrong SOUL.md' \
+          '' \
+          'This path is NOT the migration workspace identity.' \
+          '' \
+          'Set HERMES_HOME=/projects/modernized/.hermes/home (container env / login' \
+          'profile) for dest-user identity, or HERMES_HOME=.../home/profiles/<name>' \
+          'when hermes -p <name>. Load that home'\''s SOUL.md. Dest-user authored' \
+          'copy: /projects/modernized/.hermes/SOUL.md. Worker copies:' \
+          '/projects/modernized/.hermes/config/profiles/<name>.SOUL.md. dest-init' \
+          'places each under the matching HERMES_HOME with sha256 (AD-H section 14).' \
+          '' \
+          'Do not use the auto-seeded Hermes starter identity in this seat.' \
+          > "${DECOY_SOUL}"
+        echo "Neutralized decoy SOUL at ${DECOY_SOUL} (Deputy E-20260813T152939Z)."
+        # W1 — Quarkus CLI (ext ls/add/search only; create path retired DD1) +
+        # RH registry-first ~/.quarkus/config.yaml. User-space via JBang into
+        # ~/.local|~/.jbang (no root / no rsync / no custom image). Idempotent.
+        # Failure is WARN — Maven quarkus:* remains (W3 typed fallback).
+        # Skeleton must carry this string: fetch:template overwrites golden
+        # devfile.yaml and create-path tip-sync greps this filename (v18 M1).
+        PROVISION_CLI="${PROJECT_DIR}/.hermes/skills/migration/manage-quarkus-extensions/scripts/provision-quarkus-cli.sh"
+        if [ -f "${PROVISION_CLI}" ]; then
+          export PATH="${HOME}/.local/bin:${HOME}/.jbang/bin:${PATH}"
+          bash "${PROVISION_CLI}" \
+            || echo "WARN: Quarkus CLI provision failed — Maven quarkus:* fallback (W3)"
+        else
+          echo "WARN: missing ${PROVISION_CLI} — Quarkus CLI not provisioned"
+        fi
+        STAMP_REV="${PROJECT_DIR}/.hermes/skills/harness/dispatch-phase/scripts/stamp-harness-rev.py"
+        if [ -f "${STAMP_REV}" ]; then
+          python3 "${STAMP_REV}" --root "${PROJECT_DIR}" \
+            || echo "WARN: HARNESS_REV stamp failed"
+        fi
+        # Per-run resources: VERIFY that this workspace received its own
+        # database, and only then write decisions.yaml datasource.instance from
+        # migration.yaml resources.parity_database (the golden names no
+        # database). Must run BEFORE autostart-migration: M2 plans against the
+        # decision, and a run that never stamped it refuses admission rather
+        # than planning against somebody else's instance.
+        #
+        # A refusal here STOPS the run. The architect's 2026-09-22 review found
+        # this line reading `|| echo WARN` and continuing: a workspace holding
+        # another run's database went on to autostart, and the decision was
+        # already stamped, so a later M2 stamp then succeeded. A refusal is not
+        # a warning — it means this workspace is pointed at resources that are
+        # not its own, and nothing that captures, resets or compares may run.
+        STAMP_RUN="${PROJECT_DIR}/.hermes/skills/migration/bootstrap-destination/scripts/stamp-run-resources.py"
+        RUN_RESOURCES_RC=0
+        if [ -f "${STAMP_RUN}" ]; then
+          python3 "${STAMP_RUN}" --root "${PROJECT_DIR}" --verify || RUN_RESOURCES_RC=$?
+        else
+          RUN_RESOURCES_RC=1
+          echo "REFUSE: missing ${STAMP_RUN} — this run's resource ownership cannot be established"
+        fi
+        # dest-init consumer: mint M1 ANALYZE; M2 PLAN (child of M1) only
+        # when .hermes/pins.json pins.planner.activation is "activated".
+        # Never M3/M4 here (K4 mints those from an ADMITTED receipt).
+        AUTO_M1="${PROJECT_DIR}/.hermes/skills/harness/dispatch-phase/scripts/autostart-migration.sh"
+        if [ "${RUN_RESOURCES_RC}" != "0" ]; then
+          echo "REFUSE: RUN_RESOURCES this workspace is not bound to its own migration resources;"
+          echo "        autostart is NOT started. Read ${PROJECT_DIR}/.hermes/RUN-RESOURCES-STATUS."
+        elif [ -f "${AUTO_M1}" ]; then
+          bash "${AUTO_M1}" --root "${PROJECT_DIR}" \
+            || echo "WARN: autostart-migration exited nonzero (see .hermes/AUTOSTART-STATUS)"
+        fi
+        # DB-4: one launcher (writes /tmp/hermes-dashboard.status). Same
+        # postStart as tools (Dev Spaces 3.28: one postStart). Observability
+        # only — never fail the IDE.
+        DASH_START="${PROJECT_DIR}/.hermes/dashboard/start-dashboard.sh"
+        if [ -f "${DASH_START}" ]; then
+          bash "${DASH_START}" \
+            || echo "WARN: Hermes dashboard launcher exited nonzero (observability only)"
+        else
+          echo "WARN: missing ${DASH_START} — hermes-dash endpoint kept, no launcher"
+          printf 'state=failed\nreason=missing start-dashboard.sh\n' >/tmp/hermes-dashboard.status
+        fi
+  # The UDI base image documents JAVA_HOME_<version> variables as the
+  # supported way to select a JDK (sdkman default is Java 17; the pom
+  # targets 21). Each Maven command selects Java 21 through that contract.
+  - id: test
+    exec:
+      label: "1. Run tests (modernized)"
+      component: development-tooling
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: 'export JAVA_HOME="${JAVA_HOME_21:-${JAVA_HOME}}" && export PATH="${JAVA_HOME}/bin:${PATH}" && mvn -q test'
+      group:
+        kind: test
+        isDefault: true
+  - id: start-dev
+    exec:
+      label: "2. Start Development mode (modernized, hot reload + debug)"
+      component: development-tooling
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: 'export JAVA_HOME="${JAVA_HOME_21:-${JAVA_HOME}}" && export PATH="${JAVA_HOME}/bin:${PATH}" && mvn compile quarkus:dev'
+      group:
+        kind: run
+        isDefault: true
+events:
+  preStart:
+    - initialize-legacy
+  postStart:
+    - init-migration-tools

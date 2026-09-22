@@ -1,0 +1,350 @@
+# decisions.yaml — the only human input to the migration (SOLUTION-ARCHITECTURE v3 §4).
+# Decided by the stage owner on 2026-09-08. Nothing here is written or inferred by a worker.
+schema: rhoai3.decisions/v2
+
+adrs:
+  - id: ADR-001
+    status: accepted
+    title: Destination platform is Red Hat build of Quarkus 3.27 on the Spring-compatibility path (BOM from .hermes/pins.json quarkus_platform)
+  - id: ADR-002
+    status: accepted
+    title: A cluster is deferred to a human after 3 rejected (reverted) attempts; the loop stops (admission MANUAL_CLUSTER, nothing mints) until the human clears it, and the run cannot close while it is open
+  - id: ADR-003
+    status: accepted
+    title: Retire the Spring AOP JMX call monitor (CallMonitoringAspect) — Quarkus documents no AOP compatibility, the aspect carries no business behavior and no parity observation; repository timing is a metrics-extension concern, not a migration obligation (pilot specimen spring-petclinic-rest, 2026-09-09)
+  - id: ADR-004
+    status: accepted
+    title: Persistence on Quarkus is the Spring Data JPA implementation (quarkus-spring-data-jpa, the legacy "spring-data-jpa" profile); the profile-selected JDBC ("jdbc") and plain-JPA ("jpa") repository implementations are retired — JdbcTemplate has no Quarkus compatibility, the plain-JPA set duplicates the Spring Data one, and no class outside those two packages references them (spring-petclinic-rest, decided 2026-09-10)
+  - id: ADR-005
+    status: accepted
+    title: The Spring Security configurer classes (WebSecurityConfigurerAdapter subclasses BasicAuthenticationConfig, DisableSecurityConfig) are retired; HTTP basic auth and the JDBC user store are re-established declaratively on Quarkus (quarkus-spring-security keeps the annotations; quarkus.http.auth.* and quarkus-security-jpa carry the store) as a later obligation; Roles stays (decided 2026-09-10)
+  - id: ADR-006
+    status: accepted
+    title: The springfox Swagger configuration (ApplicationSwaggerConfig) is retired; OpenAPI comes from quarkus-smallrye-openapi (compat-mapping remove_dependencies maps the springfox starter to it) (decided 2026-09-10)
+  - id: ADR-007
+    status: accepted
+    title: Retire the thirteen named Spring test-infrastructure sources in addition to the four implementation-test sources retired under ADR-004; retain ValidatorTests; record lost behavioural coverage and its source-recorded runtime replacements explicitly in M4 evidence; G-2 compares private field-name sets and G-3 compares remaining MTA findings, so neither measures test coverage, missing replacement evidence remains unverified, and restoring the suite with QuarkusTest and REST Assured remains a follow-up (spring-petclinic-rest, decided 2026-09-10)
+  - id: ADR-008
+    status: accepted
+    title: An Operator-owned and independently reviewed patch ports ValidatorTests to Jakarta Validation, preserving its English locale and real provider execution and restoring its pinned assertion dependency (operator-patches/spring-petclinic-rest); assertions, test inputs, selected subject, discovery and the validation call are unchanged, workers receive no test-source write authority, the intervention is recorded as an operator step with a named independent reviewer, and fresh successful Surefire execution of the ported test remains mandatory (spring-petclinic-rest, decided 2026-09-10)
+  - id: ADR-009
+    status: accepted
+    title: The destination runs on PostgreSQL 16 (registry.redhat.io/rhel9/postgresql-16, the supported image this environment already runs); the frozen source keeps its HSQLDB baseline and provenance, which is an engine CHANGE and is recorded as one - HSQLDB has no Quarkus JDBC extension on RHBQ 3.27, the source already ships PostgreSQL schema and seed assets and the destination already carries the PostgreSQL driver, and schema and seed stay owned by those source assets so the parity referent is the source's own dataset (spring-petclinic-rest, decided 2026-09-10)
+  - id: ADR-010
+    status: accepted
+    title: A build profile condition is retired ONE CONDITION AT A TIME, enumerated in build_profiles.retire as {path, type, member, annotation, profile} and bound to the type inventory it was proposed from (build_profiles.inventory_sha256); the rows are machine-proposed (propose-profile-retirement.py) and human-accepted, the bootstrap applies them before its annotation remapping and refuses a list that is unbound, bound to another inventory, or describes a condition this tree does not have, and M2 refuses any remaining condition over the destination's own source roots that the run neither activates nor enumerates - a blanket retire_gates flag retires nothing, because a retirement nobody can read is a deletion (decided 2026-09-11)
+  - id: ADR-011
+    status: accepted
+    title: The destination BUILDS with the profiles "prod,spring-data-jpa" (quarkus.profile). The legacy activated spring.profiles.active=hsqldb,spring-data-jpa and the fifteen surviving repository beans carry @IfBuildProfile("spring-data-jpa"); a destination that activates no profile has none of them, which is the shape the platform reports as a missing repository implementation. Retiring those conditions instead would also give the destination the beans - removing @IfBuildProfile makes a bean unconditional, it does not delete it - and is equally defensible; activation is chosen because it preserves the legacy selection semantics and edits no source. prod is kept because it is the profile ADR-009 names for the datasource and the platform default, so activating only the selection profile would silently replace it. hsqldb is NOT activated: ADR-009 moved the destination to PostgreSQL and the bootstrap renders that datasource unprefixed (decided 2026-09-11)
+  - id: ADR-012
+    status: accepted
+    title: Every non-Spring-Data parent interface the seven repository specializations extend (OwnerRepository, PetRepository, PetTypeRepository, SpecialtyRepository, VetRepository, VisitRepository, UserRepository) receives an explicit fragment implementation under repository/springdatajpa, because the quarkus-spring-data-jpa generator (FragmentMethodsUtil, 3.27.3.redhat-00002) requires one per such parent and names an arbitrary member of the failing set; the base interfaces stay on the specializations (ClinicServiceImpl and UserServiceImpl inject them), a marker-only change is not accepted (void save(Entity) is not a derived query), OwnerRepositoryImpl/VetRepositoryImpl/UserRepositoryImpl are added and the four existing SpringData*RepositoryImpl override classes also implement their base interface, each adapter is @Typed to its concrete class so the generated repository stays the sole bean for the services' base-interface injection, every base method's concrete implementation is inventoried and its frozen-source semantics preserved; exit is full verification with tests, augmentation resolving all seven contracts, and the packaged artifact exercised against the decided isolated database (architect review 2026-09-12 §1; measured on v8 six builds and on v9 at the package gate 2026-09-14)
+  - id: ADR-013
+    status: accepted
+    title: The source's JaCoCo coverage thresholds (BUNDLE LINE COVEREDRATIO minimum 0.87, BRANCH COVEREDRATIO minimum 0.70, the jacoco-maven-plugin check execution at verify) are retired from the destination build because ADR-007 retired the seventeen test sources that met them and the retained ValidatorTests cannot; the prepare-agent and report executions stay so coverage remains measured, the retired minimums are recorded here so restoring them is an explicit follow-up beside the QuarkusTest and REST Assured suite ADR-007 names, and behavioural coverage of the retired tests is accounted at M4 by the coverage account, never by this threshold (spring-petclinic-rest, decided 2026-09-14 when the package gate reached jacoco:check after ADR-012)
+  - id: ADR-014
+    status: accepted
+    title: Preserve the source security switch in both disabled and enabled modes through an inventoried conditional authorization adapter and Basic authentication with the JPA identity store; retain enabled-mode authorization semantics and require separately bound source captures and packaged-runtime verification for both modes; do not manufacture privileged identities to implement disabled security (supplements ADR-005; architect ruling 2026-09-15 on the v9 M4 receipt where every read answered 403 under @PreAuthorize with no identity provider; the preferred shape is @PreAuthorize("@securityMode.disabled() OR <original role expression>"), HTTP authentication follows the switch, one bounded Operator step owns the adapter, annotation changes, Basic/JPA identity mapping, dependencies and configuration; check-empty-security must consume the inventoried security surface and bound behavioral receipts; refused - deleting authorization semantics, unconditional permit-all, privileged anonymous identities, test-only bypasses, enabled mode declared complete from anonymous parity)
+  - id: ADR-015
+    status: accepted
+    title: Restore product acceptance tests through deterministic specimen-independent generation from qualified source scenarios; bind generated tests and their executions to complete source evidence and reset contracts; retain fresh ValidatorTests execution and explicit retired-test coverage gaps; do not waive product-test floors or infer restoration of ADR-013 coverage thresholds (supplements ADR-007 and ADR-008; architect ruling 2026-09-15: a harness capability owns the generated files, workers get no authority to weaken generated expectations; the contract requires complete binding of corpus, bodies, captures, qualification, source/bundle identity, security mode, generator version and file digests, one identifiable case per qualified scenario with unqualified scenarios kept as manifest gaps, real REST Assured requests with no mocks, real verified reset including identity sequences, source-derived expectations only with origin-only Location mapping and no ID normalization, fresh reports with zero skips; floor corrections - AR-2.8 must not exclude ValidatorTests.java and must replace the OwnerCrud/Franklin family heuristics with declared scenario capabilities and execution records, assert-surefire-results needs its own evidence-based diagnosis; retired tests are credited only for specifically mapped behaviour with qualified parity and executed-test evidence)
+  - id: ADR-016
+    status: accepted
+    title: Replacing springfox with SmallRye OpenAPI preserves the source root redirect status and literal legacy Location after origin mapping only; retain the legacy Swagger UI address as a compatibility route to the packaged SmallRye UI, without corpus normalization or restoration of springfox (supplements ADR-006; architect ruling 2026-09-15 on sc:read-root 303 vs 302 with a doubled root path; a worker card repairs RootRestController with configuration or a compatibility handler entering its recorded scope before editing; exit - the root request answers 302 with exactly /petclinic/swagger-ui/index.html after origin mapping, that address serves or redirects to the replacement UI, and a bounded navigation check reaches the real UI and OpenAPI document in the packaged production artifact with Swagger UI included; refused - 303, redirect following in parity, redirect-specific normalization, a dead compatibility URL, restoring springfox)
+  - id: ADR-017
+    status: accepted
+    title: The destination's initialized logical data and generated-identity behaviour reproduce the declared source baseline (supplements ADR-009; architect ruling 2026-09-15 on the isolated experiment's finding D-5 - the corpus's initial_state.dataset is the source's HSQLDB seed while ADR-009 installed the source's PostgreSQL assets, which differ in 17 date literals and whose schema restarts seven identity sequences at 100 where the source engine continues from the seeded maximum, so Location and read-back parity could not pass as bootstrapped); PostgreSQL remains the engine; the seed and reset assets are derived from the application contract, versioned, verified by the reset (row counts, literals, next identity values), and applied before the next official parity run; the source captures and the literal Location comparison are preserved; this specimen's sequence strategy is not generalized to other applications
+  - id: ADR-018
+    status: accepted
+    title: The architect's second review of 2026-09-16 - ADR-014 is applied as one bounded Operator step only with four amendments (the source's request-level authentication policy preserved for every route when enabled, including routes without a role expression, disabled by the same switch; users.enabled enforced within authentication without a global entity filter; check-empty-security recognizes the decided JPA provider and the source's role expressions; the patch manifest bound to the actual destination baseline), verified from one artifact restarted with the switch changed at runtime against separately recorded disabled and enabled captures, the disabled-identity fixture variant with baseline restoration, and the authenticated-without-role case kept as an explicit blocker; the adopted execution model is accepted with four implementation corrections (rule-specific assessment preserving declarations and inheritance, closure and leaf decisions from the compiler model's member relationships, new implementation paths authorized from a recorded obligation and naming contract, no unresolved simple-name matching in acceptance or veto relaxation) under the bounds 20 files, 160 sites and 8 sealed symbol rows with UNIT_OVERSIZE on excess, files the hard write boundary and symbols bounding obligations; v10 is the repeatability run, started only on a corrected pinned successor golden, compared with v9 and the isolated experiment on pinned inputs, time to package, boot and parity, interventions, retries, final failures and coverage gaps; refused - applying the candidate unchanged, mechanism registration as authorization, waiving account status, always-on authentication, privileged anonymous identities, starting v10 with the defects intact, preloading repaired code into v10, calling v10 intervention-free if it needs an Operator application repair, treating one run as proof of specimen independence
+  - id: ADR-019
+    status: accepted
+    title: The architect's third review of 2026-09-16 - (1) CORS is repaired by a source-preserving response adapter, a reusable harness capability applied once on v9 as one bounded Operator repair and on v10 through ordinary PARITY_CORS worker scope, accepted by packaged-runtime parity; the source policy (not one observed request) decides routes, origins, methods and headers, captures decide representation; the configuration and the adapter path enter the sealed repair scope before editing under a naming contract and a recorded obligation; the adapter preserves platform enforcement including the early preflight responses the platform answers before application endpoints, reproduces the source header values and omissions, passes qualified preflight and paired actual scenarios (exposed headers, credential-header absence, max-age) in both security modes including rejections, leaves requests without Origin and same-origin requests as the source answers them, and restrictive-policy fixtures prove it never widens permissions or echoes rejected methods and headers; the planner's configuration-only CORS advice is replaced alongside; Content-Type charset differences are a separate response-representation obligation with its own scope, evidence and acceptance, preferring serializer or response configuration and otherwise removing only the decided parameter for the applicable media types; (2) ADR-008 and ADR-014 enter a fresh run as decided bootstrap transformations (amending the mid-run-only rule for these enumerated repairs) applied before the first loop baseline is accepted, each bound to its ADR, applicable source structure, implementation version and input/output digests, new files added only where absent or byte-identical, Java declarations rewritten structurally preserving the original authorization expressions and unrelated members, dependencies and properties added as explicit rows rejecting incompatible values, idempotent on re-execution, specimen names and mappings kept in versioned manifests and never in the engine, fresh retained-test execution and both-mode runtime verification still mandatory; an independent review is reused only for the exact reviewed artifact and its applicability contract (changed content or applicability invalidates it; an ADR identifier alone is not a review record); the run is classified autonomous execution with pre-decided repairs; (3) ADR-013 is applied by bootstrap as a structural retirement of the decided JaCoCo check execution only, preserving prepare-agent, report and unrelated executions, the retired thresholds kept in the receipt and coverage account, the effective configuration verified under the decided profiles, full verify with tests and reports, idempotent, typed mismatch on unexpected configuration; (4) v10 starts from a newly validated pinned successor golden carrying (1)-(3), after v9 satisfies the ADR-014 exits with separately bound disabled and enabled measurements (the no-role fixture stays an explicit blocker), with the producer-to-consumer paths of the bootstrap transformations and the worker adapter verified before publishing, a frozen source, recorded decisions, isolated database and verified reset, unit formation and runtime feedback on before admission, credential references resolving inside the worker runtime without printing values, the fixture secret consumed by the intended workspace and outside the credential watch mechanism; the report adds a clock started before bootstrap, first passing parity and first passing M4 kept apart from first composition or verdict, the inventory of bootstrap repairs apart from worker repairs and live interventions, pinned model/provider/inference/concurrency/toolchain/database/corpus/captures/comparator, cache conditions and verification counts, provider/queue time apart from unattributed time, PASS/FAIL/INCONCLUSIVE with scenario and entry-point denominators per security mode, a common unchanged contract subset across the three runs with extra coverage apart, and a budget and stopping conditions declared before launch; refused - comparator normalization or altered source expectations, a wildcard policy inferred from one capture, header rewriting that turns a rejection into an allowance, copying the experiment filter unchanged, dropping all Content-Type parameters, copying v9 controllers, pom or properties into v10, worker test-source write authority, inferring independent review from one seat, describing prior authored repairs as autonomous discovery, hiding bootstrap repairs from the comparison or intervention accounting, global JaCoCo disablement or skipped tests, treating retirement as reaching the former thresholds, applying this retirement to another application without its own decision, claiming specimen independence from this repetition, attributing all speed to unit formation, reporting zero prior assistance, dropping blockers or shrinking denominators
+  - id: ADR-020
+    status: accepted
+    title: The architect's fourth review of 2026-09-16 - (1) the six ADR-008/ADR-014 artifacts at 8d14e726 (ValidatorTests 96c48339, SecurityMode 3266afd8, PrefixedPlainTextPasswordProvider 41e96cc9, SourceBasicAuthenticationMechanism 4aabd482, HttpSecuritySwitch 95227533, DisabledAccountAugmentor 107530d8) are reviewed by exact bytes and recorded as new digest-bound review records; the v9 Operator steps stay application history and are never described or reused as digest-bound reviews; the review covers those artifacts only, not the commit or runtime qualification; (2) refused writes require SOURCE effect evidence - the source's post-request state observed without resetting away possible effects, a restart only from an actual retained post-request snapshot with provenance, destination revert-then-read restoring only the fixture change; until then response parity, destination no-effect and source-effect results stay separate and the source-effect claims stay INCONCLUSIVE, and baseline observations never stand in for post-request observations; (3) CORS differences the adapter introduces become obligations - a same-origin request the platform rejects must reach ordinary routing with the source's eventual status, an authenticated preflight for an unmapped method is judged on the complete source response (INCONCLUSIVE without source evidence), an enabled-mode anonymous 401 without CORS headers is accepted only when the source capture matches including the challenge, and stricter never waives a measured difference; (4) ADR-014 is accepted as progress, not exit completion - implementation review accepted for the six artifacts, runtime qualification partial, refused-write source effects inconclusive, authenticated-without-role blocked, overall parity not PASS; the recorded Operator steps stay and the loop continues; first-response redirect parity is judged apart from Swagger UI reachability (ADR-016), and no-regression claims need the accepted baseline measured under the same navigation check; the ADR-019 v10 start condition is not yet satisfied; refused - intent plus 4xx as observed absence, restarting from the seed as a post-request observation, destination-only no-effect evidence as full source parity, waiving a stricter-than-source difference, an anonymous preflight exemption to obtain 200, marking all ADR-014 exits complete; addendum - enabled-mode CORS is derived per applicable source policy as an anonymous browser preflight, an anonymous actual request, an actual request as a declared allowed identity, and an authenticated OPTIONS request typed as a diagnostic probe that never counts as browser-preflight coverage (browser preflights carry no credentials); the source is captured with security enabled and replayed in the same mode, bound to corpus, policy, requests, artifact and mode, comparing status, body and asserted headers including absence; a matched source 401 without CORS headers is parity that records the source prevents the browser exchange, never a permission-granting preflight; enabled-mode CORS stays INCONCLUSIVE until those captures exist; refused - enabled expectations inferred from disabled captures or destination behaviour, forcing a successful preflight the source denies, waiving the actual request's body or charset failures
+  - id: ADR-021
+    status: accepted
+    title: The architect's fifth review of 2026-09-17 - (1) a scenario typed diagnostic-probe creates no mandatory worker obligation, consumes no attempt, changes no required parity or browser coverage and cannot block completion, while its result stays visible in the receipt and report; the receipt composer excludes diagnostics from mandatory aggregation exactly as the planner does; the classification is bound before replay and cannot change after a failure; a client or security contract that needs authenticated OPTIONS behaviour is a separate contract scenario with source evidence and ordinary acceptance; (2) a refused-write no-effect claim requires a verified before/after database comparison within the declared effect scope - the state observed after fixture initialisation immediately before the refused request and again after the request transaction completes, before the fixture revert, both observations with digests, the comparison definition and its result retained; HTTP read-backs and the checked column-only revert stay, and where HTTP data disagrees with the database evidence both are kept and unchanged is not qualified from HTTP; a counterexample (401, a changed row, a warmed cache returning the old body) must be detected; the database comparison suffices for the scoped claim whether caching is active or not and does not replace HTTP parity; runtime caching inspection is required only when HTTP read-backs are the sole state evidence, and static annotation search is supporting evidence only; affected v9 refused-write claims are requalified with this evidence and historical results preserved; refused - promoting a probe because browser scenarios pass, browser-coverage credit for a probe, relabelling a required scenario after failure, a no-effect claim from a 4xx, a single snapshot digest, row counts alone, or a restart from the original seed
+
+  - id: ADR-022
+    status: accepted
+    title: Per-run resource isolation (amends ADR-009; architect ruling 2026-09-22 on the isolation review of 39792496) - the engine decision is unchanged (PostgreSQL 16, io.quarkus:quarkus-jdbc-postgresql, profile prod, credentials by environment reference under the existing names PETCLINIC_DB_URL / PETCLINIC_DB_USER / PETCLINIC_DB_PASSWORD, schema and seed owned by the source assets, hibernate_generation none, source baseline HSQLDB); what changes is the identity and lifetime of the isolated instance. Each run gets ONE SERVER AND GENERATED DATABASE CREDENTIALS OF ITS OWN, created at template initiation by trusted pinned platform code from a PLATFORM-ISSUED RUN ASSIGNMENT, and the golden names no concrete instance: datasource.instance ships UNSTAMPED and is stamped per run from migration.yaml resources.parity_database, after ownership is established and never before. A STAMPED STRING IS NOT PROOF OF OWNERSHIP: every reset, fixture mutation, destination startup and parity run first PARSES the endpoint into engine, host, port and database and compares each field, plus the namespace, with the assignment and with the platform's provisioning receipt, admitting only explicitly equivalent DNS forms of the same Service; missing resources BLOCK resource-dependent work with a typed blocker while static source analysis may continue, and the absence of a resources declaration is a compatibility exception bound to runs that already exist, never a bypass for a fresh one. Exits - two concurrent runs receive different servers and different secrets; resetting, restarting or retiring either leaves the other's data, credentials and workspace unchanged; a wrong or missing target is refused BEFORE any connection is opened, including before M2; retirement accounts for every generated resource. A database pod loss makes the affected measurements inconclusive and requires a fresh verified reset, never stale acceptance. Cost, stated correctly - 100m CPU and 256Mi are REQUESTS, the configured limits are 1 CPU and 512Mi, storage is an emptyDir with no PVC and no GPU; separate servers isolate database-PROCESS failures (OOM, connection exhaustion, restart windows, image pull) and do NOT isolate shared-node or control-plane outages. Refused - shared database servers, manually provisioned run resources, namespace-wide run credential mounts, per-run renaming of the credential variables, a golden that names any instance, and treating a stamped string or the presence of an environment variable as proof of ownership (spring-petclinic-rest, decided 2026-09-22)
+  - id: ADR-023
+    status: accepted
+    title: Per-run fixture identities (amends ADR-014; architect ruling 2026-09-22) - the PetClinic fixture identities keep their names and values and remain specimen-specific inputs, and move from a namespace-wide Secret into an EXACTLY BOUND per-run Secret; exits - each workspace receives only its assigned fixture Secret, a missing or mismatched binding blocks the relevant captures, and changing or retiring one run does not affect another; refused - overlapping wildcard targeting, namespace-wide fallback, and credential values in the evidence (spring-petclinic-rest, decided 2026-09-22)
+
+destination_platform:
+  id: quarkus-rhbq-3.27   # key of .hermes/planning/catalogs/destination-platforms.json
+  adr: ADR-001
+
+thresholds:
+  max_attempts: 3         # rejected attempts on one cluster before it becomes a manual card
+  adr: ADR-002
+
+# How the loop forms its work. v1 turns on the unit former: one card per
+# COORDINATED repair, with the files AND the symbols sealed in a
+# rhoai3.batch-scope/v4 inventory, instead of an arbitrary 8-file chunk of a
+# symbol group (neither half of a split `throws` surface compiles). Absent
+# means off, which is the per-file clustering a run already under way was
+# formed with -- the mode is sealed on the admission receipt and the work list
+# refuses to change it while a card is issued (UNIT_MODE_SWITCH), so this is
+# the default for a NEW run and never a mid-run flip.
+# Runtime feedback (v1): once the destination boots, compare the WHOLE scenario
+# phase on the candidate the card just produced, bound to that card, so a
+# behavioural failure enters the next work list as a parity obligation
+# immediately rather than only at M4 -- eleven of the isolated experiment's
+# eighteen defects were invisible to the compiler and fell out of one replay.
+# Cost-guarded: it is skipped when the tree's parity receipt is already bound
+# to this candidate digest, and a parity CARD still runs its own scoped
+# comparison. Absent means off, which is the v9 behaviour.
+loop:
+  unit_formation: v1
+  runtime_feedback: v1
+
+# Repairs accepted ADRs already made, carried into a FRESH run as bootstrap
+# transformations (ADR-019 sections 2 and 3) instead of mid-run Operator steps.
+# The manifest is the specimen binding -- every type, member, annotation,
+# coordinate and key lives there, never in the engine -- and this block pins
+# it by sha256. bootstrap-destination applies it before the first loop
+# baseline and writes evidence/producers/decided-repairs.json (one row per
+# transformation: applied / already-applied / refused with a type);
+# advance.py --baseline and admission refuse while a row is refused or missing.
+# A run that needed no intervention after launch is autonomous EXECUTION with
+# pre-decided repairs: both facts are recorded, neither hides the other.
+decided_repairs:
+  adr: ADR-019
+  classification: autonomous_execution_with_predecided_repairs
+  applies:
+    - ADR-008
+    - ADR-013
+    - ADR-014
+  manifest: decided-repairs/spring-petclinic-rest/manifest.json
+  manifest_sha256: 5265e8f5334a0af121753e1952c70ad0a43ed20964df5496277e27306c0c8ea5
+
+# The effective database of the destination (ADR-009). Resolved here, before a
+# worker reaches runtime verification: an absent or half-filled block keeps
+# admission INCONCLUSIVE, so nothing is minted against an undecided datasource.
+# Credentials are referenced by environment variable name and never recorded.
+# Which profiles the destination BUILDS with (ADR-011), and what it retires
+# instead (ADR-010). The platform resolves @IfBuildProfile at BUILD time, so a
+# profile nobody activates removes every bean gated on it -- measured on the v7
+# closeout: fifteen beans gone, reported one missing repository implementation
+# at a time for the whole run. Anything left unaccounted for is
+# BUILD_PROFILE_UNACCOUNTED at M2.
+build_profiles:
+  adr: ADR-011
+  active:
+    - prod
+    - spring-data-jpa
+  # retire: []          # ADR-010 rows, proposed by propose-profile-retirement.py
+  # inventory_sha256:   # stamped from the tree those rows were proposed against
+
+datasource:
+  adr: ADR-009
+  db_kind: postgresql
+  db_version: "16"
+  jdbc_extension: io.quarkus:quarkus-jdbc-postgresql
+  profile: prod
+  # Stamped PER RUN at dest-init and again at M2 by
+  # .hermes/skills/migration/bootstrap-destination/scripts/stamp-run-resources.py,
+  # from migration.yaml resources.parity_database -- the assignment the platform
+  # issued for this run (ADR-022). The golden names no database on purpose: a
+  # hardcoded instance is the one object two runs would share, and the first
+  # thing a second run's reset would destroy. UNSTAMPED is refused by
+  # check-datasource-decision.py, so nothing plans against nobody's database.
+  #
+  # And the stamp is not the guarantee. Ownership is established by PARSING the
+  # endpoint the workspace holds -- engine, host, port, database, namespace --
+  # against that assignment and the platform's provisioning receipt
+  # (.hermes/lib/planner/run_identity.py), before the reset, the fixture
+  # mutation, the destination startup and the parity run each connect.
+  instance: UNSTAMPED
+  jdbc_url_env: PETCLINIC_DB_URL
+  username_env: PETCLINIC_DB_USER
+  password_env: PETCLINIC_DB_PASSWORD
+  reset_procedure: .hermes/skills/gates/capture-source-oracles/scripts/reset-parity-db.sh --root . drops and recreates the public schema on the isolated instance, then applies schema_sql and seed_sql; every scenario run starts from exactly that state and the corpus records it as the initial state
+  schema_owner: source-assets
+  schema_sql: src/main/resources/db/postgresql/initDB.sql
+  seed_sql: src/main/resources/db/postgresql/populateDB.sql
+  hibernate_generation: none
+  source_baseline_db_kind: hsqldb
+
+# The source's security switch, and who the enabled-mode source capture
+# authenticates as (ADR-014). The frozen source has two behaviours, not one:
+# with the switch off every request is anonymous, with it on the same request
+# answers 401/403 unless it carries an identity the policy allows. Both are
+# captured, separately, and the identities are the SEED's -- nobody is
+# invented, and no privileged account is manufactured to make the disabled
+# mode work. Everything below is a KEY or a NAME: the switch is the property
+# the source reads, and credential_ref is the name of an environment variable
+# holding user:password. No credential is ever written here.
+security:
+  adr: ADR-014
+  switch:
+    key: petclinic.security.enable
+    disabled_value: "false"
+    enabled_value: "true"
+  identities:
+    - name: admin
+      credential_ref: PETCLINIC_ADMIN_CREDENTIAL
+      roles:
+        - ROLE_OWNER_ADMIN
+        - ROLE_VET_ADMIN
+        - ROLE_ADMIN
+  invalid_credential_ref: PETCLINIC_INVALID_CREDENTIAL
+  # What the source's ENABLED configuration requires of a request no
+  # annotation names. BasicAuthenticationConfig configures
+  # anyRequest().authenticated(), so an unannotated route -- the root
+  # redirect among them -- is still guarded, by "authenticated" rather than
+  # by a role. Declared here because only the Operator can read it off the
+  # source's own configuration; the derivation probes every entry point it
+  # has a request for and says this key is where that came from.
+  request_policy: authenticated
+  # Behaviour the declared dataset cannot reach. The seed enables its one
+  # identity, so no capture taken against the baseline can show what the
+  # source answers for an identity that exists and is DISABLED -- and the
+  # answer is not to edit the baseline every other capture is taken against.
+  # The variant is captured separately, against the declared dataset with
+  # these statements applied after it, and the baseline is restored and
+  # verified afterwards. The statements are the specimen's own SQL (the
+  # harness never parses them) and they carry no credential.
+  fixtures:
+    - name: identity-disabled
+      intent: refuse
+      scenarios: auth-allowed
+      dataset_config_key: spring.sql.init.data-locations
+      statements:
+        - UPDATE users SET enabled = false WHERE username = 'admin'
+
+# Work-list items an accepted ADR retires (exact item ids from
+# evidence/planning/worklist.json): one incident, one ADR, one reason.
+not_applicable: []
+
+# Source files an accepted ADR retires. The bootstrap deletes exactly these
+# and never imports them; a path the frozen legacy never had blocks
+# (RETIRED_SOURCE_MISSING). Pilot specimen: spring-petclinic-rest.
+retired_sources:
+  - path: src/main/java/org/springframework/samples/petclinic/util/CallMonitoringAspect.java
+    adr: ADR-003
+    reason: Spring AOP @Aspect + JMX @ManagedResource call timer over repositories; no Quarkus AOP compatibility; not observed by parity
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcOwnerRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcPet.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcPetRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcPetRowMapper.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcPetTypeRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcPetVisitExtractor.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcSpecialtyRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcUserRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcVetRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcVisitRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/JdbcVisitRowMapper.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jdbc/package-info.java
+    adr: ADR-004
+    reason: profile "jdbc" repository implementation (JdbcTemplate / NamedParameterJdbcTemplate); no Quarkus compatibility; superseded by the Spring Data JPA implementation
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaOwnerRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaPetRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaPetTypeRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaSpecialtyRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaUserRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaVetRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/JpaVisitRepositoryImpl.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/repository/jpa/package-info.java
+    adr: ADR-004
+    reason: profile "jpa" repository implementation (EntityManager); duplicates the Spring Data JPA implementation the destination keeps
+  - path: src/main/java/org/springframework/samples/petclinic/security/BasicAuthenticationConfig.java
+    adr: ADR-005
+    reason: extends WebSecurityConfigurerAdapter (@EnableWebSecurity, JDBC user store, BCrypt); Spring Security configurer classes have no Quarkus compatibility; re-established declaratively
+  - path: src/main/java/org/springframework/samples/petclinic/security/DisableSecurityConfig.java
+    adr: ADR-005
+    reason: extends WebSecurityConfigurerAdapter (permit-all when petclinic.security.enable=false); same
+  - path: src/main/java/org/springframework/samples/petclinic/util/ApplicationSwaggerConfig.java
+    adr: ADR-006
+    reason: springfox BeanPostProcessor / Docket configuration; springfox is Spring MVC only; quarkus-smallrye-openapi replaces it
+  - path: src/test/java/org/springframework/samples/petclinic/service/clinicService/ClinicServiceJdbcTests.java
+    adr: ADR-004
+    reason: exercises a repository implementation ADR-004 retired; a test of retired code is retired with it
+  - path: src/test/java/org/springframework/samples/petclinic/service/userService/UserServiceJdbcTests.java
+    adr: ADR-004
+    reason: exercises a repository implementation ADR-004 retired; a test of retired code is retired with it
+  - path: src/test/java/org/springframework/samples/petclinic/service/clinicService/ClinicServiceJpaTests.java
+    adr: ADR-004
+    reason: exercises a repository implementation ADR-004 retired; a test of retired code is retired with it
+  - path: src/test/java/org/springframework/samples/petclinic/service/userService/UserServiceJpaTests.java
+    adr: ADR-004
+    reason: exercises a repository implementation ADR-004 retired; a test of retired code is retired with it
+  - path: src/test/java/org/springframework/samples/petclinic/service/clinicService/ClinicServiceSpringDataJpaTests.java
+    adr: ADR-007
+    reason: @SpringBootTest + @ActiveProfiles: boots a Spring application context, which the compat path does not provide
+  - path: src/test/java/org/springframework/samples/petclinic/service/userService/UserServiceSpringDataJpaTests.java
+    adr: ADR-007
+    reason: @SpringBootTest + @ActiveProfiles: same
+  - path: src/test/java/org/springframework/samples/petclinic/service/clinicService/AbstractClinicServiceTests.java
+    adr: ADR-007
+    reason: @ContextConfiguration + @Autowired + Spring @Transactional in a test; every subclass is retired
+  - path: src/test/java/org/springframework/samples/petclinic/service/userService/AbstractUserServiceTests.java
+    adr: ADR-007
+    reason: @Autowired injection into a test; every subclass is retired
+  - path: src/test/java/org/springframework/samples/petclinic/SpringConfigTests.java
+    adr: ADR-007
+    reason: asserts the Spring application context wiring, which no longer exists
+  - path: src/test/java/org/springframework/samples/petclinic/service/clinicService/ApplicationTestConfig.java
+    adr: ADR-007
+    reason: @TestConfiguration from spring-boot-test; its only consumers are the retired controller tests
+  - path: src/test/java/org/springframework/samples/petclinic/rest/OwnerRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured
+  - path: src/test/java/org/springframework/samples/petclinic/rest/PetRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured
+  - path: src/test/java/org/springframework/samples/petclinic/rest/PetTypeRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured
+  - path: src/test/java/org/springframework/samples/petclinic/rest/SpecialtyRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured
+  - path: src/test/java/org/springframework/samples/petclinic/rest/UserRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured
+  - path: src/test/java/org/springframework/samples/petclinic/rest/VetRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured
+  - path: src/test/java/org/springframework/samples/petclinic/rest/VisitRestControllerTests.java
+    adr: ADR-007
+    reason: MockMvc standalone setup + @SpringBootTest + Spring Security test support; the documented Quarkus form is @QuarkusTest with REST Assured

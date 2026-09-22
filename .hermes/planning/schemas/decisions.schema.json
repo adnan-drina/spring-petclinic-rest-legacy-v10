@@ -1,0 +1,607 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "decisions.yaml (rhoai3.decisions/v2) \u2014 the only human input to the fix-until-green loop",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "adrs",
+    "destination_platform",
+    "thresholds",
+    "not_applicable",
+    "datasource"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": [
+        "rhoai3.decisions/v2"
+      ]
+    },
+    "adrs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected",
+              "superseded"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "destination_platform": {
+      "type": "object",
+      "required": [
+        "id",
+        "adr"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adr": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "required": [
+        "max_attempts",
+        "adr"
+      ],
+      "properties": {
+        "max_attempts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "adr": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "not_applicable": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "adr",
+          "reason"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "adr": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rule_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "item_id"
+            ]
+          },
+          {
+            "required": [
+              "rule_id"
+            ]
+          }
+        ]
+      }
+    },
+    "retired_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "adr",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "adr": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "replaced_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Entry-point ids whose recorded scenarios cover what this file did. The coverage account counts a row as replaced only when the parity receipt measured every one of them as PASS."
+          }
+        }
+      }
+    },
+    "datasource": {
+      "type": "object",
+      "description": "The effective database of the destination. An architectural input, resolved before any worker reaches runtime verification: a missing or incomplete block makes admission INCONCLUSIVE, so no card is minted against an undecided datasource.",
+      "required": [
+        "adr",
+        "db_kind",
+        "db_version",
+        "jdbc_extension",
+        "profile",
+        "instance",
+        "jdbc_url_env",
+        "username_env",
+        "password_env",
+        "reset_procedure",
+        "schema_owner",
+        "schema_sql",
+        "seed_sql",
+        "hibernate_generation",
+        "source_baseline_db_kind"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "adr": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the accepted ADR that decided the engine"
+        },
+        "db_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "quarkus.datasource.db-kind"
+        },
+        "db_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the approved database version"
+        },
+        "jdbc_extension": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "groupId:artifactId of the matching Quarkus JDBC extension"
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the build and run profile this configuration is selected under"
+        },
+        "instance": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the isolated test instance this run uses (a name an Operator can point at)"
+        },
+        "jdbc_url_env": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "environment variable holding the JDBC URL; never a literal URL with credentials"
+        },
+        "username_env": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "password_env": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reset_procedure": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "how the instance is returned to its initial state between scenario runs"
+        },
+        "schema_owner": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "who owns schema and seed: the source assets, the destination ORM, or a named migration tool"
+        },
+        "schema_sql": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seed_sql": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hibernate_generation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "quarkus.hibernate-orm.database.generation"
+        },
+        "source_baseline_db_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the engine the frozen source ran on; kept so the source baseline and its provenance are not rewritten by the destination's choice"
+        }
+      }
+    },
+    "build_profiles": {
+      "type": "object",
+      "description": "Which build profiles the destination runs with. The legacy selected implementations with spring.profiles.active; the platform resolves @IfBuildProfile at build time, so a profile nobody activates silently removes every bean gated on it. Required when the bootstrap finds profile-gated sources whose profiles the dropped spring.profiles.active used to activate.",
+      "required": [
+        "adr",
+        "active"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "adr": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "quarkus.profile, in order. Empty means the gates are retired rather than activated, which needs an ADR saying so."
+        },
+        "retire_gates": {
+          "type": "boolean",
+          "description": "true when the decision is to remove the profile gates because the alternatives they selected between are retired Enumerate exactly what is retired in retire[]; a bare true retires nothing (ADR-010)."
+        },
+        "note": {
+          "type": "string"
+        },
+        "retire": {
+          "type": "array",
+          "description": "The profile conditions the destination retires, ONE ROW PER CONDITION. A blanket retirement is not reviewable and not reproducible: it silently absorbs whatever the tree happens to contain when it runs. Each row names the file, the type, the member the annotation sits on (empty for a type-level annotation), the annotation itself and the profile it names, so a reviewer can see exactly what disappears. The rows are machine-PROPOSED (propose-profile-retirement.py) and human-ACCEPTED: the proposer never edits decisions.yaml. inventory_sha256 binds the set to the type inventory it was proposed from, so a tree that moved since then refuses rather than retiring something nobody looked at. (ADR-010)",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "type",
+              "annotation",
+              "profile"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "destination-relative source file"
+              },
+              "type": {
+                "type": "string",
+                "minLength": 1,
+                "description": "the declaring type's simple name"
+              },
+              "member": {
+                "type": "string",
+                "description": "the method or field the annotation sits on; empty for a type-level annotation"
+              },
+              "annotation": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Profile or IfBuildProfile or UnlessBuildProfile"
+              },
+              "profile": {
+                "type": "string",
+                "minLength": 1,
+                "description": "the profile name the condition selects on"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "inventory_sha256": {
+          "type": "string",
+          "description": "sha256 of evidence/type-inventory.json as it stood when retire[] was proposed. The bootstrap refuses a retirement bound to a different inventory."
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "description": "The source's security switch and the identities the enabled-mode source capture authenticates as (ADR-014). The Operator declares them; the harness knows no account and no role name. Every value except roles is a KEY or a REFERENCE -- the name of a configuration property, or the name of an environment variable holding user:password -- and never a credential: this file is read, digested and copied into evidence. Absent means no enabled-mode capture is attempted, and the M1 road steps record that as their reason rather than staying silent.",
+      "required": [
+        "adr",
+        "switch",
+        "identities"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "adr": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the accepted ADR that decided the security modes"
+        },
+        "switch": {
+          "type": "object",
+          "description": "the specimen's own security switch: the configuration KEY and the two values that name its settings",
+          "required": [
+            "key",
+            "disabled_value",
+            "enabled_value"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "description": "the configuration property name, e.g. a boolean property the source reads"
+            },
+            "disabled_value": {
+              "type": "string",
+              "minLength": 1,
+              "description": "the value that turns the source's security OFF"
+            },
+            "enabled_value": {
+              "type": "string",
+              "minLength": 1,
+              "description": "the value that turns it ON; the enabled-mode capture starts the source with key=this"
+            }
+          }
+        },
+        "identities": {
+          "type": "array",
+          "description": "the seeded identities the enabled-mode probes authenticate as. roles is what the Operator reads off the source's seed; the derivation checks it against the seed itself and a contradiction is a gap.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "credential_ref"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "the seeded identity's own name, as the seed spells it"
+              },
+              "credential_ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "the NAME of an environment variable holding user:password; never a credential"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "the roles the seed gives this identity"
+              }
+            }
+          }
+        },
+        "invalid_credential_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "the NAME of an environment variable holding a credential the Operator states is NOT valid; the invalid-credential probe is not derived without it"
+        },
+        "request_policy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "authenticated",
+            null
+          ],
+          "description": "what the source's ENABLED configuration requires of a request that no @PreAuthorize / @RolesAllowed names (ADR-014). \"authenticated\" is a source whose configuration requires authentication for every request, so an unannotated route is still guarded: the enabled derivation then probes every entry point it has a request for with an allowed identity, anonymously and with the credential declared invalid, and every scenario it derives says this key is where that came from. Absent means only the annotated entry points are probed, and the unannotated ones are neither probed nor claimed."
+        },
+        "fixtures": {
+          "type": "array",
+          "description": "separately recorded VARIANTS of the source baseline (ADR-014): behaviour the declared dataset cannot reach, such as what the source answers for an identity the seed enables once that identity is disabled. The variant is captured into its own directory, against the declared dataset with these statements applied after it, and the baseline is restored and verified afterwards. The statements are the SPECIMEN's own SQL -- opaque here, recorded verbatim in the evidence because they are fixture SQL and not credentials -- and no credential is ever written in this section.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "statements",
+              "scenarios",
+              "dataset_config_key"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-z0-9][a-z0-9-]*$",
+                "description": "the variant's own name; it becomes the suffix of the directories its corpus, captures and parity live in"
+              },
+              "statements": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "the statements applied AFTER the declared dataset, in this order; the harness treats them as opaque SQL and never parses or rewrites them"
+              },
+              "scenarios": {
+                "type": "string",
+                "enum": [
+                  "auth-allowed",
+                  "auth-anonymous",
+                  "auth-invalid",
+                  "auth-norole"
+                ],
+                "description": "which class of derived enabled-mode scenario this variant is recorded for; one variant scenario is derived per scenario of that class"
+              },
+              "dataset_config_key": {
+                "type": "string",
+                "minLength": 1,
+                "description": "the configuration property NAME the source reads its dataset location from; the variant capture starts the source with it pointed at the derived variant dataset"
+              },
+              "intent": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "refuse",
+                  null
+                ],
+                "description": "\"refuse\" when the Operator states the source refuses these requests under the variant, which qualifies them against a 4xx; absent expects whatever the source answers (a usable first response), because an expectation nobody declared is not invented"
+              }
+            }
+          }
+        }
+      }
+    },
+    "loop": {
+      "type": "object",
+      "description": "How the loop forms its work. unit_formation v1 turns on the unit former (lib/planner/worklist.form_units): one card per coordinated repair, with the files AND the symbols sealed in a rhoai3.batch-scope/v4 inventory. Absent means off, which is today's per-file and symbol-group clustering -- a run already under way keeps the mode it was formed under, because flipping it changes every cluster id and would discard a live candidate (UNIT_MODE_SWITCH). The mode is sealed by the admission receipt (seals.decisions_yaml), so every card is bound to it.",
+      "additionalProperties": false,
+      "properties": {
+        "unit_formation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "v1",
+            "off",
+            null
+          ],
+          "description": "v1 forms units; off (or absent) keeps the per-file clustering."
+        },
+        "runtime_feedback": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "v1",
+            "off",
+            null
+          ],
+          "description": "v1 runs the FULL scenario comparison (paved-road-m4/run-parity.py, unscoped) after a successful startup gate on any card whose acceptance verification reached boot, bound to that card's candidate, so a behavioural failure enters the next work-list rebuild as a parity obligation immediately instead of only at M4. It is skipped when the tree's parity receipt is already bound to this candidate digest. off (or absent) keeps the v9 behaviour: the comparison runs only for a card whose own obligation is a parity mismatch, scoped to that card's scenarios."
+        },
+        "adr": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "decided_repairs": {
+      "type": "object",
+      "description": "Repairs accepted ADRs already made, carried into a FRESH run as bootstrap transformations (ADR-019 sections 2 and 3) instead of mid-run Operator steps. The manifest is the versioned specimen binding (application names and mappings live there, never in the engine); decisions.yaml names it and pins its sha256. bootstrap-destination applies every transformation before the first loop baseline and writes evidence/producers/decided-repairs.json, one row per transformation (applied, already-applied or refused with a type); admission and advance.py --baseline refuse while any row is refused or missing, and the run is classified autonomous_execution_with_predecided_repairs.",
+      "additionalProperties": false,
+      "required": [
+        "adr",
+        "manifest",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "adr": {
+          "type": "string",
+          "description": "The ADR that decides repairs enter at bootstrap (ADR-019)."
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "autonomous_execution_with_predecided_repairs"
+          ]
+        },
+        "manifest": {
+          "type": "string",
+          "description": "Path of the specimen manifest (rhoai3.decided-repairs-manifest/v1), relative to the project root."
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "applies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The ADRs whose repairs the manifest carries; each must be accepted."
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

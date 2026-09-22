@@ -1,0 +1,461 @@
+{
+  "schema": "rhoai3.catalog.compat-mapping/v1",
+  "note": "Deterministic bootstrap for the Spring-compatibility path (SAD v3 §6). Every row is a documented Quarkus mapping, never an inference: starters map to the Quarkus Spring compatibility extensions and their runtime prerequisites; property keys map per the quarkus-spring-boot-properties and hibernate-orm guides. Versions are never here: the BOM and plugin come from .hermes/pins.json (quarkus_platform, compiler_plugin, surefire_plugin). A starter or driver without a row stays in the pom and is surfaced by the compiler and the MTA rescan as work-list items; nothing is guessed.",
+  "sources": [
+    "https://quarkus.io/guides/spring-di",
+    "https://quarkus.io/guides/spring-web",
+    "https://quarkus.io/guides/spring-data-jpa",
+    "https://quarkus.io/guides/spring-security",
+    "https://quarkus.io/guides/spring-cache",
+    "https://quarkus.io/guides/spring-scheduled",
+    "https://quarkus.io/guides/spring-boot-properties",
+    "https://quarkus.io/guides/hibernate-orm",
+    "https://quarkus.io/guides/datasource",
+    "https://quarkus.io/guides/getting-started-testing",
+    "https://quarkus.io/guides/logging",
+    "https://quarkus.io/guides/migrate-to-quarkus-3",
+    "https://quarkus.io/version/3.27/guides/rest"
+  ],
+  "parent_to_remove": {
+    "group_id": "org.springframework.boot",
+    "artifact_id": "spring-boot-starter-parent"
+  },
+  "plugin_to_remove": {
+    "group_id": "org.springframework.boot",
+    "artifact_id": "spring-boot-maven-plugin"
+  },
+  "plugin_to_add": {
+    "pin_key": "quarkus_platform",
+    "artifact_id_key": "plugin_artifact_id",
+    "goals": [
+      "build",
+      "generate-code",
+      "generate-code-tests"
+    ],
+    "extensions": true
+  },
+  "bom": {
+    "pin_key": "quarkus_platform"
+  },
+  "always_add": [
+    "quarkus-arc",
+    "quarkus-rest",
+    "quarkus-spring-di"
+  ],
+  "starters": {
+    "org.springframework.boot:spring-boot-starter": [
+      "quarkus-spring-di"
+    ],
+    "org.springframework.boot:spring-boot-starter-web": [
+      "quarkus-spring-web",
+      "quarkus-rest-jackson"
+    ],
+    "org.springframework.boot:spring-boot-starter-data-jpa": [
+      "quarkus-spring-data-jpa",
+      "quarkus-hibernate-orm"
+    ],
+    "org.springframework.boot:spring-boot-starter-validation": [
+      "quarkus-hibernate-validator"
+    ],
+    "org.springframework.boot:spring-boot-starter-security": [
+      "quarkus-spring-security"
+    ],
+    "org.springframework.boot:spring-boot-starter-cache": [
+      "quarkus-spring-cache"
+    ],
+    "org.springframework.boot:spring-boot-starter-actuator": [
+      "quarkus-smallrye-health"
+    ],
+    "org.springframework.boot:spring-boot-starter-test": [
+      "assertj-core",
+      "quarkus-junit5",
+      "rest-assured"
+    ],
+    "org.springframework.boot:spring-boot-starter-json": [
+      "quarkus-rest-jackson"
+    ],
+    "org.springframework.boot:spring-boot-starter-jdbc": [
+      "quarkus-agroal"
+    ],
+    "org.springframework.boot:spring-boot-devtools": [],
+    "org.springframework.boot:spring-boot-starter-aop": []
+  },
+  "starter_group_ids": {
+    "rest-assured": "io.rest-assured",
+    "quarkus-test-security": "io.quarkus",
+    "assertj-core": "org.assertj"
+  },
+  "jdbc_drivers": {
+    "org.postgresql:postgresql": "quarkus-jdbc-postgresql",
+    "com.h2database:h2": "quarkus-jdbc-h2",
+    "com.mysql:mysql-connector-j": "quarkus-jdbc-mysql",
+    "mysql:mysql-connector-java": "quarkus-jdbc-mysql",
+    "org.mariadb.jdbc:mariadb-java-client": "quarkus-jdbc-mariadb"
+  },
+  "remove_dependencies_matching_group": [
+    "org.springframework.boot"
+  ],
+  "properties": {
+    "spring.datasource.url": "quarkus.datasource.jdbc.url",
+    "spring.datasource.username": "quarkus.datasource.username",
+    "spring.datasource.password": "quarkus.datasource.password",
+    "spring.datasource.driver-class-name": null,
+    "spring.jpa.show-sql": "quarkus.hibernate-orm.log.sql",
+    "spring.jpa.hibernate.ddl-auto": "quarkus.hibernate-orm.database.generation",
+    "spring.jpa.properties.hibernate.dialect": null,
+    "server.port": "quarkus.http.port",
+    "server.servlet.context-path": "quarkus.http.root-path",
+    "spring.application.name": "quarkus.application.name",
+    "spring.sql.init.mode": null,
+    "spring.jpa.open-in-view": null,
+    "spring.profiles.active": null
+  },
+  "property_values": {
+    "quarkus.hibernate-orm.database.generation": {
+      "create-drop": "drop-and-create",
+      "create": "drop-and-create",
+      "update": "update",
+      "validate": "validate",
+      "none": "none"
+    }
+  },
+  "main_class": {
+    "annotation": "org.springframework.boot.autoconfigure.SpringBootApplication",
+    "action": "delete-file",
+    "note": "Quarkus has no application main class on the compat path; the file is deleted and recorded in the bootstrap receipt."
+  },
+  "maven_settings": {
+    "profile": "red-hat-enterprise-maven-repository",
+    "reason": "Red Hat build of Quarkus artifacts (com.redhat.quarkus.platform:*-redhat-*) are published on the Red Hat GA repository, not Maven Central",
+    "source": "https://docs.redhat.com/en/documentation/red_hat_build_of_quarkus/3.27/html/getting_started_with_red_hat_build_of_quarkus/proc_configuring-maven-settings_quarkus-getting-started (Configuring the Maven settings.xml file for the online repository)"
+  },
+  "starter_notes": {
+    "org.springframework.boot:spring-boot-starter-aop": "No Quarkus Spring-compatibility extension covers Spring AOP (the quarkus.io Spring guides list DI, Web, Data JPA, Security, Cache, Scheduled, Boot properties only). The starter is dropped; every @Aspect / org.aspectj use is either retired by an ADR (decisions.yaml retired_sources) or surfaced by the compiler as a work-list item for a CDI-interceptor rewrite. Nothing is guessed."
+  },
+  "property_prefixes": {
+    "logging.level.": {
+      "to": "quarkus.log.category.\"{rest}\".level",
+      "source": "https://quarkus.io/guides/logging#logging-categories (MTA rule springboot-properties-to-quarkus-00003 links the same guide)"
+    }
+  },
+  "artifact_aliases": {
+    "note": "Artifacts that MTA's Quarkus 2-era advice names by their pre-3.9 id. The pinned BOM manages only the renamed id (Quarkus 3.9 migration guide, 'RESTEasy Reactive renamed to Quarkus REST'); the brief points the worker at the managed name so it never adds an unversioned, unmanaged dependency.",
+    "io.quarkus:quarkus-resteasy-reactive": "io.quarkus:quarkus-rest",
+    "io.quarkus:quarkus-resteasy-reactive-jackson": "io.quarkus:quarkus-rest-jackson",
+    "io.quarkus:quarkus-resteasy-reactive-jsonb": "io.quarkus:quarkus-rest-jsonb",
+    "io.quarkus:quarkus-resteasy-reactive-qute": "io.quarkus:quarkus-rest-qute",
+    "io.quarkus:quarkus-rest-client-reactive": "io.quarkus:quarkus-rest-client",
+    "io.quarkus:quarkus-rest-client-reactive-jackson": "io.quarkus:quarkus-rest-client-jackson",
+    "io.quarkus:quarkus-rest-client-reactive-jsonb": "io.quarkus:quarkus-rest-client-jsonb"
+  },
+  "package_renames": {
+    "note": "Jakarta EE 10 namespace (Quarkus 3 migration guide, 'Jakarta EE 10' section): javax.* → jakarta.* for these packages. The brief attaches the rename to a compiler diagnostic that names one of them; the worker changes the import, never the dependency.",
+    "javax.persistence": "jakarta.persistence",
+    "javax.validation": "jakarta.validation",
+    "javax.transaction": "jakarta.transaction",
+    "javax.inject": "jakarta.inject",
+    "javax.enterprise": "jakarta.enterprise",
+    "javax.annotation": "jakarta.annotation",
+    "javax.ws.rs": "jakarta.ws.rs",
+    "javax.servlet": "jakarta.servlet",
+    "javax.json": "jakarta.json",
+    "javax.xml.bind": "jakarta.xml.bind"
+  },
+  "plugin_config": {
+    "note": "Documented configuration of build plugins that generate sources, applied by the bootstrap when the plugin is present. Each row: the version (a measured Maven Central release), configuration leaves set wherever they appear under the plugin, and configOptions entries. openapi-generator: the `spring` generator (library spring-boot) emits javax.validation and springfox annotations; the documented Quarkus target is generator `jaxrs-spec` with library `quarkus` and useJakartaEe (openapi-generator generator reference for jaxrs-spec).",
+    "org.openapitools:openapi-generator-maven-plugin": {
+      "version": "7.25.0",
+      "version_source": "https://repo1.maven.org/maven2/org/openapitools/openapi-generator-maven-plugin/maven-metadata.xml (2026-09-10)",
+      "configuration": {
+        "generatorName": "jaxrs-spec",
+        "library": "quarkus"
+      },
+      "configOptions": {
+        "useJakartaEe": "true",
+        "dateLibrary": "java8",
+        "useBeanValidation": "true",
+        "openApiNullable": "false",
+        "useMicroProfileOpenAPIAnnotations": "false",
+        "sourceFolder": "src/main/java"
+      },
+      "remove_configOptions": [
+        "java8",
+        "performBeanValidation"
+      ],
+      "docs": "https://openapi-generator.tech/docs/generators/jaxrs-spec",
+      "note_source_folder": "jaxrs-spec writes to <output>/src/gen/java by default while the plugin registers <output>/<configOptions.sourceFolder or src/main/java> as a compile source root (CodeGenMojo.getCompileSourceRoot, 7.25.0). Pinning sourceFolder makes the two agree and matches the source root the legacy build-helper already registers. Measured live 2026-09-10 on pilot v7: without it Maven failed at default-compile on missing DTOs while the generated files sat in src/gen/java."
+    },
+    "org.apache.maven.plugins:maven-compiler-plugin": {
+      "ensure_list": {
+        "compilerArgs": {
+          "arg": [
+            "-parameters"
+          ]
+        }
+      },
+      "source": "https://quarkus.io/guides/maven-tooling (MTA javaee-pom-to-quarkus-00030 matches compilerArgs/arg = -parameters)"
+    },
+    "org.jacoco:jacoco-maven-plugin": {
+      "version": "0.8.11",
+      "note": "JaCoCo before 0.8.11 cannot read Java 21 class files (major version 65) and fails the report goal with UnsupportedClassVersionError; 0.8.11 is the release that officially supports Java 21 (https://github.com/jacoco/jacoco/releases/tag/v0.8.11). The pinned structure_extractor toolchain is jdk-21, so a legacy pom carrying 0.8.7 breaks mvn package on the destination. Measured live 2026-09-10 on pilot v7: the loop never saw it because the measure stops at the test phase."
+    }
+  },
+  "remove_dependencies": {
+    "note": "Legacy dependencies with a documented replacement (or none) on this platform; the bootstrap removes them and adds the replacement extensions. Rows measured on pilot v6 (2026-09-10): the loop accepted each of these pom edits one card at a time.",
+    "io.springfox:springfox-boot-starter": {
+      "to": [
+        "quarkus-smallrye-openapi"
+      ],
+      "source": "https://quarkus.io/guides/openapi-swaggerui (springfox is Spring MVC only)"
+    },
+    "org.springframework.data:spring-data-jdbc-core": {
+      "to": [],
+      "source": "https://quarkus.io/guides/spring-data-jpa (Spring Data JDBC has no Quarkus compatibility extension; JDBC access on Quarkus is Agroal, quarkus-agroal comes with the JPA starter mapping)"
+    },
+    "org.springframework.security:spring-security-test": {
+      "to": [
+        "quarkus-test-security"
+      ],
+      "scope": "test",
+      "source": "https://quarkus.io/guides/security-testing"
+    }
+  },
+  "replace_dependencies": {
+    "note": "javax → jakarta artifact renames the BOM manages (MTA javax-to-jakarta-dependencies-00001/00003).",
+    "javax.xml.bind:jaxb-api": "jakarta.xml.bind:jakarta.xml.bind-api",
+    "javax.validation:validation-api": "jakarta.validation:jakarta.validation-api",
+    "javax.persistence:javax.persistence-api": "jakarta.persistence:jakarta.persistence-api",
+    "javax.annotation:javax.annotation-api": "jakarta.annotation:jakarta.annotation-api"
+  },
+  "plugins_to_add": {
+    "note": "Plugins the platform guide adds when absent (MTA javaee-pom-to-quarkus-00040; https://quarkus.io/guides/maven-tooling).",
+    "maven-failsafe-plugin": {
+      "artifactId": "maven-failsafe-plugin",
+      "version": "${surefire-plugin.version}",
+      "executions": {
+        "execution": {
+          "goals": {
+            "goal": [
+              "integration-test",
+              "verify"
+            ]
+          },
+          "configuration": {
+            "systemPropertyVariables": {
+              "native.image.path": "${project.build.directory}/${project.build.finalName}-runner",
+              "java.util.logging.manager": "org.jboss.logmanager.LogManager",
+              "maven.home": "${maven.home}"
+            }
+          }
+        }
+      }
+    },
+    "maven-surefire-plugin": {
+      "artifactId": "maven-surefire-plugin",
+      "version": "${surefire-plugin.version}",
+      "configuration": {
+        "systemPropertyVariables": {
+          "java.util.logging.manager": "org.jboss.logmanager.LogManager",
+          "maven.home": "${maven.home}"
+        }
+      }
+    }
+  },
+  "profile_files": {
+    "note": "Spring profile files application-<profile>.properties are merged into application.properties as %<profile>.<key> and removed (https://quarkus.io/guides/config-reference#profiles; MTA springboot-properties-to-quarkus-00001). Keys are mapped first (properties / property_prefixes)."
+  },
+  "test_scoped": {
+    "note": "Artifacts the mapping adds in test scope.",
+    "artifacts": [
+      "quarkus-junit5",
+      "rest-assured",
+      "quarkus-test-security",
+      "assertj-core"
+    ]
+  },
+  "datasources": {
+    "note": "The destination platform's documented JDBC extensions, one row per quarkus.datasource.db-kind (RHBQ 3.27 Configure data sources: https://docs.redhat.com/en/documentation/red_hat_build_of_quarkus/3.27/html/configure_data_sources/datasources). A db-kind with no row here is not configurable on this platform: hsqldb and derby-in-memory legacies therefore need an explicit engine decision (decisions.yaml datasource), never a silent driver swap.",
+    "db_kinds": {
+      "postgresql": {
+        "extension": "io.quarkus:quarkus-jdbc-postgresql",
+        "note": "RHBQ 3.27 Configure data sources, PostgreSQL: quarkus-jdbc-postgresql."
+      },
+      "mysql": {
+        "extension": "io.quarkus:quarkus-jdbc-mysql",
+        "note": "RHBQ 3.27 Configure data sources, MySQL: quarkus-jdbc-mysql."
+      },
+      "mariadb": {
+        "extension": "io.quarkus:quarkus-jdbc-mariadb",
+        "note": "RHBQ 3.27 Configure data sources, MariaDB: quarkus-jdbc-mariadb."
+      },
+      "mssql": {
+        "extension": "io.quarkus:quarkus-jdbc-mssql",
+        "note": "RHBQ 3.27 Configure data sources, Microsoft SQL Server: quarkus-jdbc-mssql."
+      },
+      "db2": {
+        "extension": "io.quarkus:quarkus-jdbc-db2",
+        "note": "RHBQ 3.27 Configure data sources, IBM Db2: quarkus-jdbc-db2."
+      },
+      "h2": {
+        "extension": "io.quarkus:quarkus-jdbc-h2",
+        "note": "RHBQ 3.27 Configure data sources, H2: quarkus-jdbc-h2. In-memory H2 is a development database, not a parity referent for a run that must prove persistence effects."
+      },
+      "derby": {
+        "extension": "io.quarkus:quarkus-jdbc-derby",
+        "note": "RHBQ 3.27 Configure data sources, Apache Derby: quarkus-jdbc-derby."
+      },
+      "oracle": {
+        "extension": "io.quarkus:quarkus-jdbc-oracle",
+        "note": "RHBQ 3.27 Configure data sources, Oracle: quarkus-jdbc-oracle."
+      }
+    },
+    "effective_keys": {
+      "note": "The unprefixed keys the destination must carry for the decided engine. A profile-prefixed key alone is not a configured datasource: Quarkus resolves db-kind at build time, and pilot v7 failed augmentation with 'Datasource <default> is not configured' while %hsqldb.* keys sat in application.properties.",
+      "quarkus.datasource.db-kind": "datasource.db_kind",
+      "quarkus.datasource.jdbc.url": "datasource.jdbc_url_env",
+      "quarkus.datasource.username": "datasource.username_env",
+      "quarkus.datasource.password": "datasource.password_env",
+      "quarkus.hibernate-orm.database.generation": "datasource.hibernate_generation"
+    }
+  },
+  "symbol_renames": {
+    "note": "Symbol-level targets a repair moves TO, one row per documented mapping and never an inference -- the same contract package_renames carries, at member/type granularity. Used by the unit former to seal target_symbols and by the checkpoint to decide whether a diagnostic that is still reported names a DOCUMENTED replacement. BOTH SIDES OF EVERY ROW ARE QUALIFIED IDENTITIES: the key is the fully-qualified symbol the repair leaves and `to` is the fully-qualified symbol it moves to, because a checkpoint resolves a diagnostic's token through the declaring file's imports and can only compare the result against a qualified name. jakarta.ws.rs.core.Context has a row and jakarta.ws.rs.Context does not, and an unbound `UriBuilder` -- a simple name nothing imports -- is not jakarta.ws.rs.core.UriBuilder however it is spelled; that is the whole reason these are written down rather than inferred. A row whose key or whose `to` is not qualified is dropped by the loader (worklist.symbol_renames) and documents nothing. `to` is the target, `kind` is what the symbol is, `source` is where the mapping is documented.",
+    "javax.ws.rs.core.Context": {
+      "to": "jakarta.ws.rs.core.Context",
+      "kind": "annotation",
+      "source": "https://quarkus.io/guides/migrate-to-quarkus-3 (Jakarta EE 10 namespace: javax.* -> jakarta.*)"
+    },
+    "javax.ws.rs.core.UriInfo": {
+      "to": "jakarta.ws.rs.core.UriInfo",
+      "kind": "type",
+      "source": "https://quarkus.io/guides/migrate-to-quarkus-3 (Jakarta EE 10 namespace: javax.* -> jakarta.*)"
+    },
+    "javax.ws.rs.core.UriBuilder": {
+      "to": "jakarta.ws.rs.core.UriBuilder",
+      "kind": "type",
+      "source": "https://quarkus.io/guides/migrate-to-quarkus-3 (Jakarta EE 10 namespace: javax.* -> jakarta.*)"
+    },
+    "javax.ws.rs.core.Response": {
+      "to": "jakarta.ws.rs.core.Response",
+      "kind": "type",
+      "source": "https://quarkus.io/guides/migrate-to-quarkus-3 (Jakarta EE 10 namespace: javax.* -> jakarta.*)"
+    },
+    "javax.ws.rs.core.MediaType": {
+      "to": "jakarta.ws.rs.core.MediaType",
+      "kind": "type",
+      "source": "https://quarkus.io/guides/migrate-to-quarkus-3 (Jakarta EE 10 namespace: javax.* -> jakarta.*)"
+    },
+    "javax.ws.rs.core.HttpHeaders": {
+      "to": "jakarta.ws.rs.core.HttpHeaders",
+      "kind": "type",
+      "source": "https://quarkus.io/guides/migrate-to-quarkus-3 (Jakarta EE 10 namespace: javax.* -> jakarta.*)"
+    },
+    "org.springframework.web.util.UriComponentsBuilder": {
+      "to": "jakarta.ws.rs.core.UriBuilder",
+      "kind": "type",
+      "source": "https://quarkus.io/version/3.27/guides/rest (Jakarta REST UriInfo/UriBuilder build a request-aware absolute URI; @Context injects them)",
+      "note": "the Spring Web compatibility extension does not supply UriComponentsBuilder; the platform's own request-aware builder is reached from an injected UriInfo (uriInfo.getBaseUriBuilder()), which is what keeps an absolute Location under the application base"
+    },
+    "org.springframework.web.util.UriComponents": {
+      "to": "jakarta.ws.rs.core.UriBuilder",
+      "kind": "type",
+      "source": "https://quarkus.io/version/3.27/guides/rest (Jakarta REST UriInfo/UriBuilder build a request-aware absolute URI; @Context injects them)"
+    }
+  },
+  "handler_parameters": {
+    "note": "Controller-method PARAMETER kinds the Spring Web compatibility extension documents (H6b). The guide's 'Supported Spring Web functionalities' lists the annotations a parameter may carry and, beyond those, only jakarta.servlet.http.HttpServletRequest and HttpServletResponse as parameter types; a parameter of any other kind is not among the documented ones. A 4xx the destination answers with an empty body where the source accepted the same request is the shape of a request refused before or at the handler boundary, and the planner (worklist.request_rejection_advice) resolves THIS handler's signature through the structure model against these rows. `undocumented` holds the kinds a Spring handler commonly declares that the list does not name; each row cites where its replacement is documented. Rows are documentation, never an inference about what the compat layer does with such a parameter -- the loop finds that. Each `undocumented` row carries an `action`: the one concrete first edit for a handler that declares that kind, phrased from the documentation the row cites and from nothing specific to any specimen; the planner renders it as the item's first action.",
+    "source": "https://quarkus.io/version/3.27/guides/spring-web#supported-spring-web-functionalities",
+    "supported_annotations": [
+      "org.springframework.web.bind.annotation.RequestParam",
+      "org.springframework.web.bind.annotation.RequestHeader",
+      "org.springframework.web.bind.annotation.MatrixVariable",
+      "org.springframework.web.bind.annotation.PathVariable",
+      "org.springframework.web.bind.annotation.CookieValue",
+      "org.springframework.web.bind.annotation.RequestBody"
+    ],
+    "supported_types": [
+      "jakarta.servlet.http.HttpServletRequest",
+      "jakarta.servlet.http.HttpServletResponse"
+    ],
+    "undocumented": {
+      "org.springframework.validation.BindingResult": {
+        "kind": "type",
+        "source": "https://quarkus.io/version/3.27/guides/spring-web#supported-spring-web-functionalities",
+        "note": "not among the parameter kinds the Spring Web guide lists. On the destination a constraint violation on a validated parameter is a jakarta.validation.ConstraintViolationException answered by the platform's built-in ExceptionMapper as 400 with a JSON violation report (https://quarkus.io/version/3.27/guides/validation#rest-end-point-validation); a handler that inspects the BindingResult to build its own error body does that through the platform's mechanism instead (references/rest-annotations.md rest-valid, references/exception-mapping.md exc-validation).",
+        "action": "the compat layer does not bind a BindingResult: remove it from the parameter list, and since a @Valid body is rejected by the platform's built-in validation mapper with a 400 JSON report before the handler runs, the source's own error response (status, headers, body as the scenario's expected response records them) can only come from validating INSIDE the handler: remove @Valid from the body parameter, inject jakarta.validation.Validator (@Inject Validator validator), call validator.validate(body) where the source inspected the BindingResult, and build the source's response from the returned Set<ConstraintViolation<T>> (each violation's getPropertyPath() and getMessage() are the field and message Spring's FieldError carried). BindingResult must not remain a parameter (references/rest-annotations.md rest-valid, references/exception-mapping.md exc-validation)."
+      },
+      "org.springframework.validation.Errors": {
+        "kind": "type",
+        "source": "https://quarkus.io/version/3.27/guides/spring-web#supported-spring-web-functionalities",
+        "note": "the supertype of BindingResult: the same row (https://quarkus.io/version/3.27/guides/validation#rest-end-point-validation).",
+        "action": "the same first action as BindingResult: remove the parameter, validate inside the handler with an injected jakarta.validation.Validator, build the source's response from the violations."
+      },
+      "org.springframework.web.util.UriComponentsBuilder": {
+        "kind": "type",
+        "source": "https://quarkus.io/version/3.27/guides/spring-web#supported-spring-web-functionalities",
+        "note": "not among the parameter kinds the Spring Web guide lists; symbol_renames maps it to jakarta.ws.rs.core.UriBuilder reached from an injected jakarta.ws.rs.core.UriInfo (uriInfo.getBaseUriBuilder(), references/rest-annotations.md rest-location-uri).",
+        "action": "the compat layer does not bind a UriComponentsBuilder: replace the parameter with @Context jakarta.ws.rs.core.UriInfo uriInfo and build the Location as uriInfo.getBaseUriBuilder().path(<the source's own path template>).build(<the id values>) -- never new URI(String) (its checked URISyntaxException is vetoed) and never URI.create of a relative path (it drops the base the scenario compares) (references/rest-annotations.md rest-location-uri)."
+      },
+      "jakarta.validation.Valid": {
+        "kind": "annotation",
+        "source": "https://quarkus.io/version/3.27/guides/validation#rest-end-point-validation",
+        "note": "not in the Spring Web guide's annotation table. Quarkus's validation guide documents @Valid on a REST endpoint parameter (quarkus-hibernate-validator, the extension spring-boot-starter-validation maps to): a violation is answered 400 with a JSON violation report by a built-in jakarta.ws.rs.ext.ExceptionMapper.",
+        "action": "the platform validates a @Valid endpoint parameter BEFORE the handler runs and answers a violation itself (400, JSON violation report, built-in ExceptionMapper). Keep @Valid only when the source's response to an invalid body IS that report. When the source answers an invalid body with its own status, headers or body (the scenario's expected response records them), remove @Valid from the parameter, inject jakarta.validation.Validator (@Inject Validator validator), call validator.validate(body) in the method, and build the source's response from the Set<ConstraintViolation<T>> it returns (references/rest-annotations.md rest-valid, references/exception-mapping.md exc-validation)."
+      },
+      "javax.validation.Valid": {
+        "kind": "annotation",
+        "source": "https://quarkus.io/version/3.27/guides/validation#rest-end-point-validation",
+        "note": "the pre-Jakarta spelling of jakarta.validation.Valid (package_renames javax.validation -> jakarta.validation); the same row.",
+        "action": "rename the import to jakarta.validation.Valid (package_renames), then the same first action as jakarta.validation.Valid."
+      }
+    }
+  },
+  "build_plugins": {
+    "note": "Build plugins that GENERATE the destination's sources, and what their documented generators do to a request body (H7). A request body type that lives under target/generated-sources is owned by its generator's configuration in pom.xml, never by the controller: the planner (worklist.generated_body_binding) reads the generated type's constructor from the compiler model, compares the properties it requires with the recorded request body, and cites the row here. Rows are documentation from the generator's official reference; each option is quoted with its documented description and default. Nothing here is inferred from a specimen.",
+    "org.openapitools:openapi-generator-maven-plugin": {
+      "docs": "https://openapi-generator.tech/docs/plugins/",
+      "option_location": "a generator option goes under <configuration><configOptions><NAME>VALUE</NAME></configOptions> of the plugin (or of the execution that runs the generator)",
+      "generators": {
+        "jaxrs-spec": {
+          "source": "https://openapi-generator.tech/docs/generators/jaxrs-spec",
+          "models": "a model class gets a @JsonCreator constructor whose parameters carry @JsonProperty(required = true) for every property the spec's schema lists under `required` (generateJsonCreator, default true); Jackson then refuses a body that lacks one of those keys before any handler runs (a 400 at the boundary). The `spring` generator (library spring-boot) the legacy build used binds models through setters, so the same body was accepted there.",
+          "required_args_constructor": {
+            "option": "generateJsonCreator",
+            "description": "Whether to generate @JsonCreator constructor for required properties.",
+            "default": "true",
+            "value_that_stops_it": "false",
+            "where": "configOptions"
+          },
+          "related_options": [
+            {
+              "option": "generateBuilders",
+              "description": "Whether to generate builders for models",
+              "default": "false"
+            },
+            {
+              "option": "generateConstructorWithAllArgs",
+              "description": "whether to generate a constructor for all arguments",
+              "default": "false"
+            },
+            {
+              "option": "useJakartaEe",
+              "description": "whether to use Jakarta EE namespace instead of javax",
+              "default": "false"
+            },
+            {
+              "option": "library",
+              "description": "library template (sub-template) to use: <default> (JAXRS spec only, to be deployed in an app server), quarkus, thorntail, openliberty, helidon, kumuluzee",
+              "default": "<default>"
+            }
+          ],
+          "action": "set <generateJsonCreator>false</generateJsonCreator> under the plugin's <configOptions> in pom.xml (the generator then emits no required-args @JsonCreator constructor and the model binds through its setters, as the spring generator's did); leave the spec's `required` lists as they are unless the source's contract does not require the property either. Do not edit the generated file (the next build rewrites it) and do not touch the controller for this difference.",
+          "observation": "a @ControllerAdvice/@ExceptionHandler that turns the deserialization failure into a body in the source is a separate concern: the destination's platform answers the boundary refusal itself, and whether a mapper renders a body is a build-profile/mapping question, not this obligation's."
+        },
+        "spring": {
+          "source": "https://openapi-generator.tech/docs/generators/spring",
+          "models": "the legacy build's generator (library spring-boot): models bind through setters; no required-args constructor unless generatedConstructorWithRequiredArgs is set (default false)."
+        }
+      }
+    }
+  }
+}
