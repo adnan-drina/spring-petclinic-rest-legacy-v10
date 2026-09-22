@@ -18,7 +18,7 @@ package org.springframework.samples.petclinic.repository;
 
 import java.util.Collection;
 
-import org.springframework.dao.DataAccessException;
+import jakarta.persistence.PersistenceException;
 import org.springframework.samples.petclinic.model.Specialty;
 
 /**
@@ -28,12 +28,12 @@ import org.springframework.samples.petclinic.model.Specialty;
 
 public interface SpecialtyRepository {
 	
-	Specialty findById(int id) throws DataAccessException;
+	Specialty findById(int id) throws PersistenceException;
 	
-	Collection<Specialty> findAll() throws DataAccessException;
+	Collection<Specialty> findAll() throws PersistenceException;
 	
-	void save(Specialty specialty) throws DataAccessException;
+	void save(Specialty specialty) throws PersistenceException;
 	
-	void delete(Specialty specialty) throws DataAccessException;
+	void delete(Specialty specialty) throws PersistenceException;
 
 }

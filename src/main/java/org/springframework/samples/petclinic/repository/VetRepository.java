@@ -17,7 +17,7 @@ package org.springframework.samples.petclinic.repository;
 
 import java.util.Collection;
 
-import org.springframework.dao.DataAccessException;
+import jakarta.persistence.PersistenceException;
 import org.springframework.samples.petclinic.model.Vet;
 
 /**
@@ -37,13 +37,13 @@ public interface VetRepository {
      *
      * @return a <code>Collection</code> of <code>Vet</code>s
      */
-    Collection<Vet> findAll() throws DataAccessException;
+    Collection<Vet> findAll() throws PersistenceException;
     
-	Vet findById(int id) throws DataAccessException;
+	Vet findById(int id) throws PersistenceException;
 
-	void save(Vet vet) throws DataAccessException;
+	void save(Vet vet) throws PersistenceException;
 	
-	void delete(Vet vet) throws DataAccessException;
+	void delete(Vet vet) throws PersistenceException;
 
 
 }

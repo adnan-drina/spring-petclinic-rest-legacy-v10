@@ -20,7 +20,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 import io.quarkus.arc.profile.IfBuildProfile;
-import org.springframework.dao.DataAccessException;
+import jakarta.persistence.PersistenceException;
 import org.springframework.samples.petclinic.model.Visit;
 
 /**
@@ -35,7 +35,7 @@ public class SpringDataVisitRepositoryImpl implements VisitRepositoryOverride {
     private EntityManager em;
 
 	@Override
-	public void delete(Visit visit) throws DataAccessException {
+	public void delete(Visit visit) throws PersistenceException {
 		String visitId = visit.getId().toString();
 		this.em.createQuery("DELETE FROM Visit visit WHERE id=" + visitId).executeUpdate();
         if (em.contains(visit)) {

@@ -17,7 +17,7 @@ package org.springframework.samples.petclinic.service;
 
 import java.util.Collection;
 
-import org.springframework.dao.DataAccessException;
+import jakarta.persistence.PersistenceException;
 import org.springframework.samples.petclinic.model.Owner;
 import org.springframework.samples.petclinic.model.Pet;
 import org.springframework.samples.petclinic.model.PetType;
@@ -34,38 +34,38 @@ import org.springframework.samples.petclinic.model.Visit;
  */
 public interface ClinicService {
 
-	Pet findPetById(int id) throws DataAccessException;
-	Collection<Pet> findAllPets() throws DataAccessException;
-	void savePet(Pet pet) throws DataAccessException;
-	void deletePet(Pet pet) throws DataAccessException;
+	Pet findPetById(int id) throws PersistenceException;
+	Collection<Pet> findAllPets() throws PersistenceException;
+	void savePet(Pet pet) throws PersistenceException;
+	void deletePet(Pet pet) throws PersistenceException;
 
 	Collection<Visit> findVisitsByPetId(int petId);
-	Visit findVisitById(int visitId) throws DataAccessException;
-	Collection<Visit> findAllVisits() throws DataAccessException;
-	void saveVisit(Visit visit) throws DataAccessException;
-	void deleteVisit(Visit visit) throws DataAccessException;
+	Visit findVisitById(int visitId) throws PersistenceException;
+	Collection<Visit> findAllVisits() throws PersistenceException;
+	void saveVisit(Visit visit) throws PersistenceException;
+	void deleteVisit(Visit visit) throws PersistenceException;
 	
-	Vet findVetById(int id) throws DataAccessException;
-	Collection<Vet> findVets() throws DataAccessException;
-	Collection<Vet> findAllVets() throws DataAccessException;
-	void saveVet(Vet vet) throws DataAccessException;
-	void deleteVet(Vet vet) throws DataAccessException;
+	Vet findVetById(int id) throws PersistenceException;
+	Collection<Vet> findVets() throws PersistenceException;
+	Collection<Vet> findAllVets() throws PersistenceException;
+	void saveVet(Vet vet) throws PersistenceException;
+	void deleteVet(Vet vet) throws PersistenceException;
 	
-	Owner findOwnerById(int id) throws DataAccessException;
-	Collection<Owner> findAllOwners() throws DataAccessException;
-	void saveOwner(Owner owner) throws DataAccessException;
-	void deleteOwner(Owner owner) throws DataAccessException;
-	Collection<Owner> findOwnerByLastName(String lastName) throws DataAccessException;
+	Owner findOwnerById(int id) throws PersistenceException;
+	Collection<Owner> findAllOwners() throws PersistenceException;
+	void saveOwner(Owner owner) throws PersistenceException;
+	void deleteOwner(Owner owner) throws PersistenceException;
+	Collection<Owner> findOwnerByLastName(String lastName) throws PersistenceException;
 
 	PetType findPetTypeById(int petTypeId);
-	Collection<PetType> findAllPetTypes() throws DataAccessException;
-	Collection<PetType> findPetTypes() throws DataAccessException;
-	void savePetType(PetType petType) throws DataAccessException;
-	void deletePetType(PetType petType) throws DataAccessException;
+	Collection<PetType> findAllPetTypes() throws PersistenceException;
+	Collection<PetType> findPetTypes() throws PersistenceException;
+	void savePetType(PetType petType) throws PersistenceException;
+	void deletePetType(PetType petType) throws PersistenceException;
 	
 	Specialty findSpecialtyById(int specialtyId);
-	Collection<Specialty> findAllSpecialties() throws DataAccessException;
-	void saveSpecialty(Specialty specialty) throws DataAccessException;
-	void deleteSpecialty(Specialty specialty) throws DataAccessException;
+	Collection<Specialty> findAllSpecialties() throws PersistenceException;
+	void saveSpecialty(Specialty specialty) throws PersistenceException;
+	void deleteSpecialty(Specialty specialty) throws PersistenceException;
 
 }

@@ -19,8 +19,7 @@ import java.util.Collection;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.dao.DataAccessException;
-import org.springframework.dao.EmptyResultDataAccessException;
+import jakarta.persistence.PersistenceException;
 import org.springframework.orm.ObjectRetrievalFailureException;
 import org.springframework.samples.petclinic.model.Owner;
 import org.springframework.samples.petclinic.model.Pet;
@@ -73,23 +72,23 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<Pet> findAllPets() throws DataAccessException {
+	public Collection<Pet> findAllPets() throws PersistenceException {
 		return petRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void deletePet(Pet pet) throws DataAccessException {
+	public void deletePet(Pet pet) throws PersistenceException {
 		petRepository.delete(pet);
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public Visit findVisitById(int visitId) throws DataAccessException {
+	public Visit findVisitById(int visitId) throws PersistenceException {
 		Visit visit = null;
 		try {
 			visit = visitRepository.findById(visitId);
-		} catch (ObjectRetrievalFailureException|EmptyResultDataAccessException e) {
+		} catch (ObjectRetrievalFailureException|PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -98,23 +97,23 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<Visit> findAllVisits() throws DataAccessException {
+	public Collection<Visit> findAllVisits() throws PersistenceException {
 		return visitRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void deleteVisit(Visit visit) throws DataAccessException {
+	public void deleteVisit(Visit visit) throws PersistenceException {
 		visitRepository.delete(visit);
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public Vet findVetById(int id) throws DataAccessException {
+	public Vet findVetById(int id) throws PersistenceException {
 		Vet vet = null;
 		try {
 			vet = vetRepository.findById(id);
-		} catch (ObjectRetrievalFailureException|EmptyResultDataAccessException e) {
+		} catch (ObjectRetrievalFailureException|PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -123,31 +122,31 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<Vet> findAllVets() throws DataAccessException {
+	public Collection<Vet> findAllVets() throws PersistenceException {
 		return vetRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void saveVet(Vet vet) throws DataAccessException {
+	public void saveVet(Vet vet) throws PersistenceException {
 		vetRepository.save(vet);
 	}
 
 	@Override
 	@Transactional
-	public void deleteVet(Vet vet) throws DataAccessException {
+	public void deleteVet(Vet vet) throws PersistenceException {
 		vetRepository.delete(vet);
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<Owner> findAllOwners() throws DataAccessException {
+	public Collection<Owner> findAllOwners() throws PersistenceException {
 		return ownerRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void deleteOwner(Owner owner) throws DataAccessException {
+	public void deleteOwner(Owner owner) throws PersistenceException {
 		ownerRepository.delete(owner);
 	}
 
@@ -157,7 +156,7 @@ public class ClinicServiceImpl implements ClinicService {
 		PetType petType = null;
 		try {
 			petType = petTypeRepository.findById(petTypeId);
-		} catch (ObjectRetrievalFailureException|EmptyResultDataAccessException e) {
+		} catch (ObjectRetrievalFailureException|PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -166,19 +165,19 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<PetType> findAllPetTypes() throws DataAccessException {
+	public Collection<PetType> findAllPetTypes() throws PersistenceException {
 		return petTypeRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void savePetType(PetType petType) throws DataAccessException {
+	public void savePetType(PetType petType) throws PersistenceException {
 		petTypeRepository.save(petType);
 	}
 
 	@Override
 	@Transactional
-	public void deletePetType(PetType petType) throws DataAccessException {
+	public void deletePetType(PetType petType) throws PersistenceException {
 		petTypeRepository.delete(petType);
 	}
 
@@ -188,7 +187,7 @@ public class ClinicServiceImpl implements ClinicService {
 		Specialty specialty = null;
 		try {
 			specialty = specialtyRepository.findById(specialtyId);
-		} catch (ObjectRetrievalFailureException|EmptyResultDataAccessException e) {
+		} catch (ObjectRetrievalFailureException|PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -197,35 +196,35 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<Specialty> findAllSpecialties() throws DataAccessException {
+	public Collection<Specialty> findAllSpecialties() throws PersistenceException {
 		return specialtyRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void saveSpecialty(Specialty specialty) throws DataAccessException {
+	public void saveSpecialty(Specialty specialty) throws PersistenceException {
 		specialtyRepository.save(specialty);
 	}
 
 	@Override
 	@Transactional
-	public void deleteSpecialty(Specialty specialty) throws DataAccessException {
+	public void deleteSpecialty(Specialty specialty) throws PersistenceException {
 		specialtyRepository.delete(specialty);
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<PetType> findPetTypes() throws DataAccessException {
+	public Collection<PetType> findPetTypes() throws PersistenceException {
 		return petRepository.findPetTypes();
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public Owner findOwnerById(int id) throws DataAccessException {
+	public Owner findOwnerById(int id) throws PersistenceException {
 		Owner owner = null;
 		try {
 			owner = ownerRepository.findById(id);
-		} catch (ObjectRetrievalFailureException|EmptyResultDataAccessException e) {
+		} catch (ObjectRetrievalFailureException|PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -234,11 +233,11 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Pet findPetById(int id) throws DataAccessException {
+	public Pet findPetById(int id) throws PersistenceException {
 		Pet pet = null;
 		try {
 			pet = petRepository.findById(id);
-		} catch (ObjectRetrievalFailureException|EmptyResultDataAccessException e) {
+		} catch (ObjectRetrievalFailureException|PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -247,14 +246,14 @@ public class ClinicServiceImpl implements ClinicService {
 
 	@Override
 	@Transactional
-	public void savePet(Pet pet) throws DataAccessException {
+	public void savePet(Pet pet) throws PersistenceException {
 		petRepository.save(pet);
 		
 	}
 
 	@Override
 	@Transactional
-	public void saveVisit(Visit visit) throws DataAccessException {
+	public void saveVisit(Visit visit) throws PersistenceException {
 		visitRepository.save(visit);
 		
 	}
@@ -262,20 +261,20 @@ public class ClinicServiceImpl implements ClinicService {
 	@Override
 	@Transactional(readOnly = true)
     @Cacheable(value = "vets")
-	public Collection<Vet> findVets() throws DataAccessException {
+	public Collection<Vet> findVets() throws PersistenceException {
 		return vetRepository.findAll();
 	}
 
 	@Override
 	@Transactional
-	public void saveOwner(Owner owner) throws DataAccessException {
+	public void saveOwner(Owner owner) throws PersistenceException {
 		ownerRepository.save(owner);
 		
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public Collection<Owner> findOwnerByLastName(String lastName) throws DataAccessException {
+	public Collection<Owner> findOwnerByLastName(String lastName) throws PersistenceException {
 		return ownerRepository.findByLastName(lastName);
 	}
 
