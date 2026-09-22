@@ -20,7 +20,6 @@ import java.util.Collection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import jakarta.persistence.PersistenceException;
-import org.springframework.orm.ObjectRetrievalFailureException;
 import org.springframework.samples.petclinic.model.Owner;
 import org.springframework.samples.petclinic.model.Pet;
 import org.springframework.samples.petclinic.model.PetType;
@@ -88,7 +87,7 @@ public class ClinicServiceImpl implements ClinicService {
 		Visit visit = null;
 		try {
 			visit = visitRepository.findById(visitId);
-		} catch (ObjectRetrievalFailureException|PersistenceException e) {
+		} catch (PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -113,7 +112,7 @@ public class ClinicServiceImpl implements ClinicService {
 		Vet vet = null;
 		try {
 			vet = vetRepository.findById(id);
-		} catch (ObjectRetrievalFailureException|PersistenceException e) {
+		} catch (PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -156,7 +155,7 @@ public class ClinicServiceImpl implements ClinicService {
 		PetType petType = null;
 		try {
 			petType = petTypeRepository.findById(petTypeId);
-		} catch (ObjectRetrievalFailureException|PersistenceException e) {
+		} catch (PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -187,7 +186,7 @@ public class ClinicServiceImpl implements ClinicService {
 		Specialty specialty = null;
 		try {
 			specialty = specialtyRepository.findById(specialtyId);
-		} catch (ObjectRetrievalFailureException|PersistenceException e) {
+		} catch (PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -224,7 +223,7 @@ public class ClinicServiceImpl implements ClinicService {
 		Owner owner = null;
 		try {
 			owner = ownerRepository.findById(id);
-		} catch (ObjectRetrievalFailureException|PersistenceException e) {
+		} catch (PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
@@ -237,7 +236,7 @@ public class ClinicServiceImpl implements ClinicService {
 		Pet pet = null;
 		try {
 			pet = petRepository.findById(id);
-		} catch (ObjectRetrievalFailureException|PersistenceException e) {
+		} catch (PersistenceException e) {
 		// just ignore not found exceptions for Jdbc/Jpa realization
 			return null;
 		}
