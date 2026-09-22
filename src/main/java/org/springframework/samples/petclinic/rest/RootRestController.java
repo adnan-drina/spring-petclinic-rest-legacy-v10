@@ -33,12 +33,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/")
 public class RootRestController {
 
-    @Value("#{servletContext.contextPath}")
+    @Value("${quarkus.http.root-path:/}")
     private String servletContextPath;
 
 	@RequestMapping(value = "/")
 	public Response redirectToSwagger() {
-		return Response.seeOther(URI.create(this.servletContextPath + "/swagger-ui/index.html")).build();
+		return Response.seeOther(URI.create(this.servletContextPath.replaceAll("/+$", "") + "/swagger-ui/index.html")).build();
 	}
 
 }
