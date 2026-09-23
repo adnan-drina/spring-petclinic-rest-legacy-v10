@@ -72,16 +72,24 @@ public class HttpSecuritySwitch {
      */
     private static final String APPLICATION_ROOT = "*";
 
+    /**
+     * Source-proven anonymous documentation (enabled-mode walk of
+     * {@code /petclinic/swagger-ui/index.html} answers 200 with no identity).
+     * Relative: the platform prepends the application root. API paths stay
+     * authenticated. The first redirect at {@code /} is unchanged.
+     */
+    private static final String DOCUMENTATION_UI = "swagger-ui/*";
+
     @Inject
     SecurityMode securityMode;
 
     void configure(@Observes HttpSecurity httpSecurity) {
         if (this.securityMode.isEnabled()) {
-            // BasicAuthenticationConfig: httpBasic() and anyRequest().authenticated().
-            httpSecurity
-                .mechanism(new SourceBasicAuthenticationMechanism())
-                .path(APPLICATION_ROOT)
-                .authenticated();
+            // BasicAuthenticationConfig: httpBasic() and anyRequest().authenticated(),
+            // except the documentation UI the source served anonymously.
+            httpSecurity.mechanism(new SourceBasicAuthenticationMechanism());
+            httpSecurity.path(DOCUMENTATION_UI).permit();
+            httpSecurity.path(APPLICATION_ROOT).authenticated();
         } else {
             // DisableSecurityConfig: anyRequest().permitAll(), and no mechanism,
             // so an anonymous request is never challenged and a request that
