@@ -37,8 +37,8 @@ public class RootRestController {
     private String servletContextPath;
 
 	@RequestMapping(value = "/")
-	public Response redirectToSwagger() {
-		return Response.seeOther(URI.create(this.servletContextPath.replaceAll("/+$", "") + "/swagger-ui/index.html")).build();
+	public Response redirectToSwagger(@jakarta.ws.rs.core.Context jakarta.ws.rs.core.UriInfo uriInfo) {
+		return Response.status(302).location(uriInfo.getBaseUri().resolve("swagger-ui/index.html")).build();
 	}
 
 }
