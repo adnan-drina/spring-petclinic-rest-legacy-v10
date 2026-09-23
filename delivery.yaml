@@ -1,0 +1,33 @@
+# Application delivery contract for this destination. M5 scripts read these
+# values; they do not invent specimen paths.
+delivery:
+  namespace: spring-petclinic-rest-legacy-v10-dev
+  repo: spring-petclinic-rest-legacy-v10
+  swagger_path: /q/swagger-ui
+  openapi_path: /q/openapi
+  reads:
+    - id: owners
+      method: GET
+      path: /petclinic/api/owners
+    - id: pets
+      method: GET
+      path: /petclinic/api/pets
+    - id: vets
+      method: GET
+      path: /petclinic/api/vets
+  crud:
+    create:
+      method: POST
+      path: /petclinic/api/owners
+      body:
+        firstName: M5Probe
+        lastName: Delivery
+        address: 1 Test Street
+        city: Testville
+        telephone: "5551234567"
+  auth:
+    mode: disabled
+    header_from_env: PETCLINIC_ADMIN_CREDENTIAL
+  cors:
+    origin: https://example.invalid
+    expect_grant: true
