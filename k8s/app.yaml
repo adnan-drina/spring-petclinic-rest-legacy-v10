@@ -96,14 +96,14 @@ spec:
               readOnly: true
           livenessProbe:
             httpGet:
-              path: /q/health/live
+              path: /petclinic/q/health/live
               port: http
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 3
           readinessProbe:
             httpGet:
-              path: /q/health/ready
+              path: /petclinic/q/health/ready
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10

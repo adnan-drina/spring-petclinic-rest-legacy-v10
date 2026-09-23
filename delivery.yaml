@@ -3,8 +3,8 @@
 delivery:
   namespace: spring-petclinic-rest-legacy-v10-dev
   repo: spring-petclinic-rest-legacy-v10
-  swagger_path: /q/swagger-ui
-  openapi_path: /q/openapi
+  swagger_path: /petclinic/q/swagger-ui
+  openapi_path: /petclinic/q/openapi
   reads:
     - id: owners
       method: GET
