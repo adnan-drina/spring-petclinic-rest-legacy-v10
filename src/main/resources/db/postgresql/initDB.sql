@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS vet_specialties (
   vet_id INT NOT NULL,
   specialty_id INT NOT NULL,
   FOREIGN KEY (vet_id) REFERENCES vets(id),
-  FOREIGN KEY (specialty_id) REFERENCES specialties(id),
+  CONSTRAINT "FK_VET_SPECIALTIES_SPECIALTIES" FOREIGN KEY (specialty_id) REFERENCES specialties(id),
   CONSTRAINT unique_ids UNIQUE (vet_id,specialty_id)
 );
 

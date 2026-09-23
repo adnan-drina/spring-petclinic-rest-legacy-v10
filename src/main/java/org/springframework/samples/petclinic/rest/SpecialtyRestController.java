@@ -26,7 +26,6 @@ import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.transaction.Transactional;
 import jakarta.validation.Validator;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.core.UriInfo;
@@ -112,14 +111,33 @@ public class SpecialtyRestController {
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.VET_ADMIN)")
     @RequestMapping(value = "/{specialtyId}", method = RequestMethod.DELETE, produces = "application/json")
-    @Transactional
-    public ResponseEntity<Void> deleteSpecialty(@PathVariable("specialtyId") int specialtyId) {
+    public ResponseEntity<String> deleteSpecialty(@PathVariable("specialtyId") int specialtyId) {
         Specialty specialty = this.clinicService.findSpecialtyById(specialtyId);
         if (specialty == null) {
-            return new ResponseEntity<Void>(HttpStatus.NOT_FOUND);
+            return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
         }
-        this.clinicService.deleteSpecialty(specialty);
-        return new ResponseEntity<Void>(HttpStatus.NO_CONTENT);
+        try {
+            // The service owns the transaction: its rollback finishes before
+            // a refused write is translated into the source's HTTP contract.
+            this.clinicService.deleteSpecialty(specialty);
+        } catch (org.hibernate.exception.ConstraintViolationException failure) {
+            if (!"23503".equals(failure.getSQLState()) || failure.getConstraintName() == null) {
+                throw failure;
+            }
+            // Preserve the legacy Spring/Hibernate error envelope for a real
+            // FK failure. The constraint is database metadata, never a fixture ID.
+            String operation = "could not execute statement";
+            String message = operation + "; SQL [n/a]; constraint ["
+                    + failure.getConstraintName() + "]; nested exception is "
+                    + failure.getClass().getName() + ": " + operation;
+            String body = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()
+                    .put("className", "org.springframework.dao.DataIntegrityViolationException")
+                    .put("exMessage", message).toString();
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Type", "text/plain;charset=UTF-8");
+            return new ResponseEntity<String>(body, headers, HttpStatus.BAD_REQUEST);
+        }
+        return new ResponseEntity<String>(HttpStatus.NO_CONTENT);
     }
 
 }
