@@ -49,10 +49,9 @@ public class PetTypeRepositoryImpl implements PetTypeRepository {
 
     @Override
     public void delete(PetType petType) throws PersistenceException {
-        this.em.remove(this.em.contains(petType) ? petType : this.em.merge(petType));
         Integer petTypeId = petType.getId();
 
-        List<Pet> pets = this.em.createQuery("SELECT pet FROM Pet pet WHERE type_id = " + petTypeId, Pet.class).getResultList();
+        List<Pet> pets = this.em.createQuery("SELECT pet FROM Pet pet WHERE type.id = " + petTypeId, Pet.class).getResultList();
         for (Pet pet : pets) {
             List<Visit> visits = pet.getVisits();
             for (Visit visit : visits) {
