@@ -28,11 +28,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.core.UriInfo;
 import jakarta.inject.Inject;
 import java.util.Collection;
+import java.util.Set;
 
 /**
  * @author Vitaliy Fedoriv
@@ -90,11 +91,24 @@ public class OwnerRestController {
     @RequestMapping(value = "", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<OwnerDto> addOwner(OwnerDto ownerDto, UriInfo uriInfo) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.valueOf("application/json"));
-        var violations = this.validator.validate(ownerDto);
-        if (!violations.isEmpty() || ownerDto.getId() != null) {
-            BindingErrorsResponse errors = new BindingErrorsResponse(ownerDto.getId());
-            errors.addAllErrors(violations);
+        BindingErrorsResponse errors = null;
+        Set<ConstraintViolation<OwnerDto>> violations = this.validator.validate(ownerDto);
+        if (!violations.isEmpty()) {
+            errors = new BindingErrorsResponse();
+            for (ConstraintViolation<OwnerDto> violation : violations) {
+                String field = String.valueOf(violation.getPropertyPath());
+                BindingErrorsResponse.BindingError error = new BindingErrorsResponse.BindingError();
+                error.setObjectName("ownerDto");
+                error.setFieldName(field);
+                error.setFieldValue(String.valueOf(violation.getInvalidValue()));
+                error.setErrorMessage(violation.getMessage());
+                errors.addError(error);
+            }
+        }
+        if (errors != null || ownerDto.getId() != null) {
+            if (errors == null) {
+                errors = new BindingErrorsResponse(ownerDto.getId());
+            }
             headers.add("errors", errors.toJSON());
             return new ResponseEntity<>(headers, HttpStatus.BAD_REQUEST);
         }
