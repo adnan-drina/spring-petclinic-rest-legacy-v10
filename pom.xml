@@ -225,6 +225,7 @@
                 <useBeanValidation>true</useBeanValidation>
                 <useMicroProfileOpenAPIAnnotations>false</useMicroProfileOpenAPIAnnotations>
                 <sourceFolder>src/main/java</sourceFolder>
+                <generateJsonCreator>false</generateJsonCreator>
               </configOptions>
             </configuration>
           </execution>

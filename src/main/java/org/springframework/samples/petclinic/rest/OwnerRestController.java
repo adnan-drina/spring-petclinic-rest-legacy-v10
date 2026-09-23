@@ -18,6 +18,7 @@ package org.springframework.samples.petclinic.rest;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.samples.petclinic.dto.OwnerDto;
 import org.springframework.samples.petclinic.mapper.OwnerMapper;
@@ -86,9 +87,10 @@ public class OwnerRestController {
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
-    @RequestMapping(value = "", method = RequestMethod.POST, produces = "application/json")
+    @RequestMapping(value = "", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<OwnerDto> addOwner(OwnerDto ownerDto, UriInfo uriInfo) {
         HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.valueOf("application/json"));
         var violations = this.validator.validate(ownerDto);
         if (!violations.isEmpty() || ownerDto.getId() != null) {
             BindingErrorsResponse errors = new BindingErrorsResponse(ownerDto.getId());
@@ -125,7 +127,9 @@ public class OwnerRestController {
         currentOwner.setLastName(ownerDto.getLastName());
         currentOwner.setTelephone(ownerDto.getTelephone());
         this.clinicService.saveOwner(currentOwner);
-        return new ResponseEntity<>(ownerMapper.toOwnerDto(currentOwner), HttpStatus.NO_CONTENT);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.valueOf("application/json"));
+        return new ResponseEntity<>(ownerMapper.toOwnerDto(currentOwner), headers, HttpStatus.NO_CONTENT);
     }
 
     @PreAuthorize("@securityMode.disabled() or hasRole(@roles.OWNER_ADMIN)")
