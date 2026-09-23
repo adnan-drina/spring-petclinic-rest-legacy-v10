@@ -55,6 +55,6 @@ public class VisitRepositoryImpl implements VisitRepository {
 
     @Override
     public void delete(Visit visit) throws PersistenceException {
-        this.em.remove(this.em.contains(visit) ? visit : this.em.merge(visit));
+        this.em.createQuery("DELETE FROM Visit visit WHERE id = " + visit.getId()).executeUpdate();
     }
 }
