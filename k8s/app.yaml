@@ -47,17 +47,49 @@ spec:
                 secretKeyRef:
                   name: spring-petclinic-rest-legacy-v10-postgres
                   key: POSTGRESQL_PASSWORD
+          volumeMounts:
+            - name: postgres-schema
+              mountPath: /opt/petclinic-schema
+              readOnly: true
           initContainers:
             - name: wait-for-postgres
               image: registry.redhat.io/rhel9/postgresql-16@sha256:188e892c58c56037c8ff93051f3e3b76ec56773de5ba89791cd4a686f97b0cef
               imagePullPolicy: IfNotPresent
-              envFrom:
-                - secretRef:
-                    name: spring-petclinic-rest-legacy-v10-postgres
+              env:
+                - name: PGHOST
+                  value: spring-petclinic-rest-legacy-v10-postgres
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: spring-petclinic-rest-legacy-v10-postgres
+                      key: POSTGRESQL_USER
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: spring-petclinic-rest-legacy-v10-postgres
+                      key: POSTGRESQL_DATABASE
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: spring-petclinic-rest-legacy-v10-postgres
+                      key: POSTGRESQL_PASSWORD
+              volumeMounts:
+                - name: postgres-schema
+                  mountPath: /opt/petclinic-schema
+                  readOnly: true
               command:
                 - /bin/bash
                 - -c
-                - until pg_isready -h spring-petclinic-rest-legacy-v10-postgres -p 5432 -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE"; do sleep 2; done
+                - |
+                  set -euo pipefail
+                  until pg_isready -h "$PGHOST" -p 5432 -U "$PGUSER" -d "$PGDATABASE"; do sleep 2; done
+                  present="$(psql -tAc "SELECT COALESCE(to_regclass('public.owners')::text, '')")"
+                  if [ "$present" = "owners" ]; then
+                    echo "schema present"
+                    exit 0
+                  fi
+                  psql -v ON_ERROR_STOP=1 -f /opt/petclinic-schema/initDB.sql
+                  psql -v ON_ERROR_STOP=1 -f /opt/petclinic-schema/baseline-data.sql
           livenessProbe:
             httpGet:
               path: /q/health/live
@@ -82,6 +114,10 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: postgres-schema
+          configMap:
+            name: spring-petclinic-rest-legacy-v10-postgres-schema
 ---
 apiVersion: v1
 kind: Service
@@ -110,6 +146,7 @@ spec:
   to:
     kind: Service
     name: spring-petclinic-rest-legacy-v10
+  subdomain: petclinic-v10
   port:
     targetPort: http
   tls:

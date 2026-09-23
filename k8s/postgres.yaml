@@ -1,9 +1,11 @@
 # Dev-grade PostgreSQL for the migrated service. Copied from
 # k8s-templates/postgres.yaml because evidence/required-extensions.json
-# database.needed is true (form-entity-persistence / PROVISION_DATABASE).
-# Image pin is the platform migration-run PostgreSQL 16 digest (ADR-009).
-# Schema and baseline-data are the decided source assets, applied on first
-# start. Secret values are DEMO VALUES ONLY (same contract as the template).
+# database.needed is true. Image pin is the platform migration-run
+# PostgreSQL 16 digest (ADR-009). Runtime shape matches the platform
+# provisioner (secret-ref env, check-container, emptyDir) so the image can
+# create POSTGRESQL_USER. Schema is loaded by the application initContainer
+# from the ConfigMap below (decided initDB.sql + baseline-data.sql).
+# Secret values are DEMO VALUES ONLY (same contract as the template).
 apiVersion: v1
 kind: Secret
 metadata:
@@ -211,23 +213,6 @@ data:
     SELECT setval(pg_get_serial_sequence('visits', 'id'), COALESCE((SELECT max("id") FROM "visits"), 1), (SELECT count(*) > 0 FROM "visits"));
     SELECT setval(pg_get_serial_sequence('roles', 'id'), COALESCE((SELECT max("id") FROM "roles"), 1), (SELECT count(*) > 0 FROM "roles"));
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: spring-petclinic-rest-legacy-v10-postgres-init
-  labels:
-    app.kubernetes.io/part-of: spring-petclinic-rest-legacy-v10
-data:
-  00-load-schema.sh: |
-    #!/bin/bash
-    set -euo pipefail
-    # Load the decided PostgreSQL schema and derived baseline (ADR-009).
-    # Runs only on first initialization of this data directory.
-    psql -v ON_ERROR_STOP=1 --username "${POSTGRESQL_USER}" --dbname "${POSTGRESQL_DATABASE}" \
-      -f /opt/app-root/src/postgresql-schema/initDB.sql
-    psql -v ON_ERROR_STOP=1 --username "${POSTGRESQL_USER}" --dbname "${POSTGRESQL_DATABASE}" \
-      -f /opt/app-root/src/postgresql-schema/baseline-data.sql
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -250,9 +235,22 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
-          envFrom:
-            - secretRef:
-                name: spring-petclinic-rest-legacy-v10-postgres
+          env:
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: spring-petclinic-rest-legacy-v10-postgres
+                  key: POSTGRESQL_DATABASE
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: spring-petclinic-rest-legacy-v10-postgres
+                  key: POSTGRESQL_USER
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spring-petclinic-rest-legacy-v10-postgres
+                  key: POSTGRESQL_PASSWORD
           readinessProbe:
             exec:
               command: ["/usr/libexec/check-container"]
@@ -267,21 +265,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/pgsql/data
-            - name: init
-              mountPath: /opt/app-root/src/postgresql-init
-            - name: schema
-              mountPath: /opt/app-root/src/postgresql-schema
-              readOnly: true
       volumes:
         - name: data
           emptyDir: {}
-        - name: init
-          configMap:
-            name: spring-petclinic-rest-legacy-v10-postgres-init
-            defaultMode: 0755
-        - name: schema
-          configMap:
-            name: spring-petclinic-rest-legacy-v10-postgres-schema
 ---
 apiVersion: v1
 kind: Service
